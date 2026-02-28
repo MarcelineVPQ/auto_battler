@@ -159,10 +159,15 @@ func take_damage(amount: int) -> Dictionary:
 		result.evaded = true
 		return result
 
-	# Apply armor reduction (can go negative if armor is negative)
-	var final_damage := maxi(amount - armor, 1)
-	result.damage = final_damage
-	current_hp -= final_damage
+	# Armor absorbs damage first, then remainder hits HP
+	var remaining := amount
+	if armor > 0:
+		var absorbed := mini(armor, remaining)
+		armor -= absorbed
+		remaining -= absorbed
+		_update_armor_bar()
+	result.damage = amount
+	current_hp -= remaining
 	current_hp = maxi(current_hp, 0)
 	health_bar.value = current_hp
 

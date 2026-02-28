@@ -28,6 +28,7 @@ var lives: int = STARTING_LIVES
 var farms: int = STARTING_FARMS
 var farm_purchases: int = 0
 var last_round_won: bool = false
+var gold_snapshot: int = 0
 
 func change_phase(new_phase: Phase) -> void:
 	current_phase = new_phase
@@ -44,6 +45,9 @@ func end_battle(player_won: bool) -> void:
 		lives_changed.emit(lives)
 		if lives <= 0:
 			game_over.emit()
+		else:
+			gold = gold_snapshot
+			gold_changed.emit(gold)
 	round_ended.emit(player_won)
 
 func calculate_income() -> int:
@@ -64,6 +68,11 @@ func advance_round() -> void:
 		gold += income
 		gold_changed.emit(gold)
 	current_round += 1
+	gold_snapshot = gold
+	# Life regen every 5 rounds
+	if current_round % 5 == 0:
+		lives += 1
+		lives_changed.emit(lives)
 	change_phase(Phase.WAVE_SELECT)
 
 func spend_gold(amount: int) -> bool:
@@ -93,6 +102,7 @@ func reset() -> void:
 	farms = STARTING_FARMS
 	farm_purchases = 0
 	last_round_won = false
+	gold_snapshot = 0
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
 	farms_changed.emit()

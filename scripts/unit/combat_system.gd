@@ -195,10 +195,8 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				enemy.current_hp = maxi(enemy.current_hp - poison_dmg, 0)
-				enemy.health_bar.value = enemy.current_hp
-				if enemy.current_hp <= 0:
-					enemy.die()
+				enemy.take_damage(poison_dmg)
+				if enemy.is_dead:
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s casts %s — poisons all enemies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, poison_dmg])
 		"Grunt":
@@ -206,10 +204,18 @@ func _trigger_ability(unit: Unit) -> void:
 			unit.attacks_per_second *= 1.3
 			combat_event.emit("[color=%s]%s enters Frenzy — attack speed up![/color]" % [team_tag, u_name])
 		"Tank":
-			# Shield Bash: gain armor
-			unit.armor += 2
-			unit._update_armor_bar()
-			combat_event.emit("[color=%s]%s uses Shield Bash — +2 armor![/color]" % [team_tag, u_name])
+			# Shield Bash: deal (3 * armor + damage) to nearest enemy
+			var bash_target := board.find_nearest_enemy(unit)
+			if bash_target != null and not bash_target.is_dead:
+				var bash_dmg := unit.armor * 3 + unit.damage
+				var bash_result := bash_target.take_damage(bash_dmg)
+				var t_name := bash_target.unit_data.unit_name
+				combat_event.emit("[color=%s]%s uses Shield Bash on %s for %d![/color]" % [team_tag, u_name, t_name, bash_result.damage])
+				if bash_target.is_dead:
+					combat_event.emit("[color=%s]%s kills %s[/color]" % [team_tag, u_name, t_name])
+					board.remove_unit(bash_target)
+			else:
+				combat_event.emit("[color=%s]%s uses Shield Bash — no target![/color]" % [team_tag, u_name])
 		"Assassin":
 			# Shadowstrike: guaranteed crit on next hit
 			unit.crit_chance += 50.0
@@ -223,10 +229,8 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				enemy.current_hp = maxi(enemy.current_hp - volley_dmg, 0)
-				enemy.health_bar.value = enemy.current_hp
-				if enemy.current_hp <= 0:
-					enemy.die()
+				enemy.take_damage(volley_dmg)
+				if enemy.is_dead:
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s fires Volley — hits all enemies for %d![/color]" % [team_tag, u_name, volley_dmg])
 

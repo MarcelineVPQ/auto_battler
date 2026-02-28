@@ -299,6 +299,26 @@ func _show_wave_select() -> void:
 
 	wave_overlay.visible = true
 
+func _show_wave_select_rematch() -> void:
+	# Same as _show_wave_select but reuses existing wave_options (no new generation)
+	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+
+	for child in wave_cards_container.get_children():
+		child.queue_free()
+
+	for i in range(3):
+		var wave: Dictionary = wave_options[i]
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(240, 180)
+		btn.text = "%s\n\n%s\n\n%d units (%d farms)\nStrategy: %s" % [
+			wave.name, wave.enemy_text, wave.total_units, wave.total_farms, wave.strategy
+		]
+		var idx := i
+		btn.pressed.connect(func(): _on_wave_selected(idx))
+		wave_cards_container.add_child(btn)
+
+	wave_overlay.visible = true
+
 func _hide_wave_select() -> void:
 	wave_overlay.visible = false
 
@@ -476,6 +496,10 @@ func _roll_shop() -> void:
 	var hero_weights := {}
 	for data in hero_pool:
 		hero_weights[data.unit_class] = 1
+	# Favor combat units in early shop rolls
+	if GameManager.current_round <= 4:
+		hero_weights["Grunt"] = 3
+		hero_weights["Tank"] = 3
 	var weighted_heroes := _build_weighted_pool(hero_weights)
 	for i in range(HERO_SHOP_SLOTS):
 		var data: UnitData = weighted_heroes.pick_random()
@@ -1121,12 +1145,15 @@ func _on_combat_ended(player_won: bool) -> void:
 		result_label.text = "VICTORY!"
 		result_label.add_theme_color_override("font_color", Color.GREEN)
 	else:
-		result_label.text = "DEFEAT!"
+		result_label.text = "DEFEAT! — Rematch..."
 		result_label.add_theme_color_override("font_color", Color.RED)
 	_update_ui()
 
 	if GameManager.lives > 0 and GameManager.current_round < GameManager.MAX_ROUNDS:
-		get_tree().create_timer(2.0).timeout.connect(_start_next_round)
+		if player_won:
+			get_tree().create_timer(2.0).timeout.connect(_start_next_round)
+		else:
+			get_tree().create_timer(2.0).timeout.connect(_start_rematch)
 	elif GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
 		result_label.text = "GAME COMPLETE!"
 
@@ -1136,6 +1163,15 @@ func _start_next_round() -> void:
 	_hide_info_panel()
 	result_label.text = ""
 	GameManager.advance_round()
+
+func _start_rematch() -> void:
+	board.clear_all()
+	board.deselect()
+	_hide_info_panel()
+	_hide_battle_ui()
+	result_label.text = ""
+	# Reuse existing wave_options — skip _generate_wave_options() and advance_round()
+	_show_wave_select_rematch()
 
 # ── Phase Changes ───────────────────────────────────────────
 
