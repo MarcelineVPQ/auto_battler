@@ -23,6 +23,7 @@ var hero_pool: Array[UnitData] = [
 	preload("res://resources/units/grunt.tres"),
 	preload("res://resources/units/archer.tres"),
 	preload("res://resources/units/assassin.tres"),
+	preload("res://resources/units/summoner.tres"),
 ]
 
 # Upgrade definitions
@@ -61,27 +62,28 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Invincible", "cost": 15, "rarity": "Rare", "desc": "+15% evasion", "stat": "evasion", "amount": 15.0},
 	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "+10 damage", "stat": "damage", "amount": 10},
 	{"name": "Sniper", "cost": 15, "rarity": "Rare", "desc": "+100 atk range", "stat": "attack_range", "amount": 100.0},
+	{"name": "Necromancy", "cost": 8, "rarity": "Rare", "desc": "Summoner: archers inherit stats", "stat": "necromancy", "amount": 1.0},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
 # "weights" map unit_class to relative pick chance; "label" describes the mix
 var wave_strategies: Array[Dictionary] = [
 	{"label": "Frontline Defense", "strategy": "concentrated",
-	 "weights": {"Tank": 5, "Priest": 2, "Warlock": 1, "Herbalist": 1, "Grunt": 3, "Archer": 0, "Assassin": 0}},
+	 "weights": {"Tank": 5, "Priest": 2, "Warlock": 1, "Herbalist": 1, "Grunt": 3, "Archer": 0, "Assassin": 0, "Summoner": 0}},
 	{"label": "Glass Cannon", "strategy": "spread",
-	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 4, "Herbalist": 4, "Grunt": 0, "Archer": 3, "Assassin": 2}},
+	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 4, "Herbalist": 4, "Grunt": 0, "Archer": 3, "Assassin": 2, "Summoner": 1}},
 	{"label": "Arcane Assault", "strategy": "concentrated",
-	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 5, "Herbalist": 2, "Grunt": 1, "Archer": 2, "Assassin": 0}},
+	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 5, "Herbalist": 2, "Grunt": 1, "Archer": 2, "Assassin": 0, "Summoner": 2}},
 	{"label": "Holy Guard", "strategy": "many",
-	 "weights": {"Tank": 3, "Priest": 5, "Warlock": 1, "Herbalist": 1, "Grunt": 2, "Archer": 0, "Assassin": 0}},
+	 "weights": {"Tank": 3, "Priest": 5, "Warlock": 1, "Herbalist": 1, "Grunt": 2, "Archer": 0, "Assassin": 0, "Summoner": 1}},
 	{"label": "Poison Swarm", "strategy": "many",
-	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 1, "Herbalist": 5, "Grunt": 1, "Archer": 1, "Assassin": 1}},
+	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 1, "Herbalist": 5, "Grunt": 1, "Archer": 1, "Assassin": 1, "Summoner": 0}},
 	{"label": "Balanced Army", "strategy": "spread",
-	 "weights": {"Tank": 3, "Priest": 3, "Warlock": 3, "Herbalist": 3, "Grunt": 3, "Archer": 3, "Assassin": 3}},
+	 "weights": {"Tank": 3, "Priest": 3, "Warlock": 3, "Herbalist": 3, "Grunt": 3, "Archer": 3, "Assassin": 3, "Summoner": 1}},
 	{"label": "Blitz Rush", "strategy": "concentrated",
-	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 0, "Herbalist": 1, "Grunt": 5, "Archer": 1, "Assassin": 4}},
+	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 0, "Herbalist": 1, "Grunt": 5, "Archer": 1, "Assassin": 4, "Summoner": 0}},
 	{"label": "Sniper Nest", "strategy": "spread",
-	 "weights": {"Tank": 2, "Priest": 1, "Warlock": 1, "Herbalist": 1, "Grunt": 1, "Archer": 5, "Assassin": 1}},
+	 "weights": {"Tank": 2, "Priest": 1, "Warlock": 1, "Herbalist": 1, "Grunt": 1, "Archer": 5, "Assassin": 1, "Summoner": 1}},
 ]
 
 # Squad persistence — saves runtime stats between rounds
@@ -123,6 +125,7 @@ var _info_unit: Unit = null
 func _ready() -> void:
 	combat_system.setup(board)
 	combat_system.combat_ended.connect(_on_combat_ended)
+	combat_system.summon_requested.connect(_on_summon_requested)
 	ready_button.pressed.connect(_on_ready_pressed)
 
 	GameManager.phase_changed.connect(_on_phase_changed)
@@ -401,6 +404,8 @@ func _buy_upgrade(idx: int) -> void:
 	board.queue_redraw()
 
 func _apply_pending_upgrade(unit: Unit) -> void:
+	if unit.applied_upgrades.size() >= unit.get_max_upgrades():
+		return
 	var slot: Dictionary = shop_slots[_pending_upgrade_slot]
 	var upgrade: Dictionary = slot.data
 
@@ -508,6 +513,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.current_mana = unit.max_mana
 		"armor":
 			unit.armor += int(amount)
+			unit._update_armor_bar()
 		"evasion":
 			unit.evasion += amount
 		"attack_range":
@@ -518,6 +524,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.crit_chance += amount
 		"skill_proc_chance":
 			unit.skill_proc_chance += amount
+		"necromancy":
+			unit.necromancy_stacks += int(amount)
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
@@ -533,29 +541,46 @@ func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) ->
 
 # ── Hero Stacking (Merge) ──────────────────────────────────
 
-const MAX_MERGES: int = 4
-
 func _merge_units(target: Unit, consumed: Unit) -> void:
-	var merges_to_add := 1 + consumed.merge_count
-	target.merge_count = mini(target.merge_count + merges_to_add, MAX_MERGES)
-	# Boost all stats by 25% per merge absorbed
-	for i in range(merges_to_add):
-		target.damage = int(ceil(target.damage * 1.25))
-		target.max_hp = int(ceil(target.max_hp * 1.25))
-		target.attacks_per_second *= 1.25
-		target.attack_range *= 1.25
-		target.move_speed *= 1.25
-		target.armor = int(ceil(target.armor * 1.25)) if target.armor > 0 else 0
-		target.evasion *= 1.25
-		target.crit_chance *= 1.25
-		target.skill_proc_chance *= 1.25
-		target.max_mana = int(ceil(target.max_mana * 1.25))
+	var xp_gained := 1 + consumed.xp
+	target.xp += xp_gained
+
+	# Small boost per XP gained (~10% stats per XP point)
+	for i in range(xp_gained):
+		target.damage = int(ceil(target.damage * 1.10))
+		target.max_hp = int(ceil(target.max_hp * 1.10))
+		target.attacks_per_second *= 1.05
+		target.attack_range *= 1.05
+		target.move_speed *= 1.05
+		target.armor += 1 if target.armor > 0 else 0
+		target.evasion *= 1.05
+		target.crit_chance *= 1.05
+		target.skill_proc_chance *= 1.05
+		target.max_mana = int(ceil(target.max_mana * 1.05))
+
+	# Level-up loop
+	while target.xp >= Unit.XP_TO_LEVEL:
+		target.xp -= Unit.XP_TO_LEVEL
+		target.level += 1
+		# Big stat boost on level-up
+		target.damage = int(ceil(target.damage * 1.40))
+		target.max_hp = int(ceil(target.max_hp * 1.40))
+		target.attacks_per_second *= 1.20
+		target.attack_range *= 1.15
+		target.move_speed *= 1.15
+		target.armor += 2 if target.armor > 0 else 0
+		target.evasion *= 1.20
+		target.crit_chance *= 1.20
+		target.skill_proc_chance *= 1.20
+		target.max_mana = int(ceil(target.max_mana * 1.20))
+
 	target.current_hp = target.max_hp
 	target.current_mana = target.max_mana
 
 	# Update visuals
 	target.health_bar.max_value = target.max_hp
 	target.health_bar.value = target.current_hp
+	target._update_armor_bar()
 	target.update_scale()
 
 	# Remove consumed unit
@@ -578,7 +603,9 @@ func _save_squad() -> void:
 		player_squad.append({
 			"data": unit.unit_data,
 			"position": unit.position,
-			"merge_count": unit.merge_count,
+			"xp": unit.xp,
+			"level": unit.level,
+			"necromancy_stacks": unit.necromancy_stacks,
 			"stat_purchases": unit.stat_purchases.duplicate(),
 			"applied_upgrades": saved_upgrades,
 			"stats": {
@@ -600,7 +627,9 @@ func _save_squad() -> void:
 func _restore_squad() -> void:
 	for entry in player_squad:
 		var unit := _spawn_unit(entry.data, Unit.Team.PLAYER, entry.position)
-		unit.merge_count = entry.get("merge_count", 0)
+		unit.xp = entry.get("xp", 0)
+		unit.level = entry.get("level", 1)
+		unit.necromancy_stacks = entry.get("necromancy_stacks", 0)
 		unit.stat_purchases = entry.get("stat_purchases", {}).duplicate()
 		var saved_upgrades: Array = entry.get("applied_upgrades", [])
 		for upg in saved_upgrades:
@@ -632,6 +661,40 @@ func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2) -> Unit:
 	unit.setup(data, team, pos)
 	board.add_unit(unit)
 	return unit
+
+func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit) -> void:
+	var archer := _spawn_unit(data, team, pos)
+	# Scale summoned archer stats based on the summoner's merge count and stat purchases
+	var total_purchases: int = 0
+	for key in summoner.stat_purchases:
+		total_purchases += summoner.stat_purchases[key]
+	var power: float = (summoner.level - 1) * 5.0 + summoner.xp + total_purchases
+	if power > 0:
+		var scale_factor := 1.0 + power * 0.15
+		archer.damage = int(ceil(archer.damage * scale_factor))
+		archer.max_hp = int(ceil(archer.max_hp * scale_factor))
+		archer.current_hp = archer.max_hp
+		archer.attacks_per_second *= 1.0 + power * 0.05
+		archer.health_bar.max_value = archer.max_hp
+		archer.health_bar.value = archer.current_hp
+		archer.update_scale()
+	# Necromancy: each stack gives summoned archers 25% of the summoner's bonus stats
+	if summoner.necromancy_stacks > 0:
+		var pct := summoner.necromancy_stacks * 0.25
+		var bonus_hp := summoner.max_hp - summoner.unit_data.max_hp
+		var bonus_atk_spd := summoner.attacks_per_second - summoner.unit_data.attacks_per_second
+		var bonus_armor := summoner.armor - summoner.unit_data.armor
+		var bonus_evasion := summoner.evasion - summoner.unit_data.evasion
+		var bonus_crit := summoner.crit_chance - summoner.unit_data.crit_chance
+		archer.max_hp += int(ceil(bonus_hp * pct))
+		archer.current_hp = archer.max_hp
+		archer.attacks_per_second += bonus_atk_spd * pct
+		archer.armor += int(ceil(bonus_armor * pct))
+		archer.evasion += bonus_evasion * pct
+		archer.crit_chance += bonus_crit * pct
+		archer.health_bar.max_value = archer.max_hp
+		archer.health_bar.value = archer.current_hp
+		archer._update_armor_bar()
 
 # ── Input (Drag & Drop + Selection) ────────────────────────
 
@@ -705,8 +768,7 @@ func _on_mouse_released(_local_pos: Vector2) -> void:
 		# Check for merge at the current drag position BEFORE snapping
 		var merge_target := board.get_unit_at(dragging_unit.position, 50.0, dragging_unit)
 		if merge_target and merge_target.team == Unit.Team.PLAYER \
-				and merge_target.unit_data.unit_class == dragging_unit.unit_data.unit_class \
-				and merge_target.merge_count < 4 and dragging_unit.merge_count < 4:
+				and merge_target.unit_data.unit_class == dragging_unit.unit_data.unit_class:
 			_merge_units(merge_target, dragging_unit)
 		else:
 			var snapped := board.snap_to_grid(dragging_unit.position, dragging_unit)
@@ -814,8 +876,7 @@ func _show_info_panel(unit: Unit) -> void:
 	var header := Label.new()
 	header.add_theme_font_size_override("font_size", 16)
 	var header_text := "%s\n%s  (Cost: %dg)" % [unit.unit_data.unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost]
-	if unit.merge_count > 0:
-		header_text += "\nMerge: %d/%d" % [unit.merge_count, MAX_MERGES]
+	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
 	header.text = header_text
 	info_panel.add_child(header)
 
@@ -827,7 +888,7 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_display("Ability CD", "%.1fs" % unit.ability_cooldown)
 	_add_stat_row(unit, "max_hp", "Health", "%d/%d" % [unit.current_hp, unit.max_hp], can_buy, 10.0)
 	_add_stat_row(unit, "max_mana", "Mana", "%d/%d" % [unit.current_mana, unit.max_mana], can_buy, 2.0)
-	_add_stat_display("Armor", "%d" % unit.armor)
+	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 1.0)
 	_add_stat_row(unit, "evasion", "Evasion", "%.0f%%" % unit.evasion, can_buy, 2.0)
 	_add_stat_row(unit, "attack_range", "Atk Range", "%.0f" % unit.attack_range, can_buy, 20.0)
 	_add_stat_row(unit, "move_speed", "Move Speed", "%.0f" % unit.move_speed, can_buy, 5.0)
@@ -835,17 +896,16 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "skill_proc_chance", "Skill Proc", "%.0f%%" % unit.skill_proc_chance, can_buy, 1.0)
 
 	# Applied upgrades section
-	if unit.applied_upgrades.size() > 0:
-		info_panel.add_child(HSeparator.new())
-		var upgrades_header := Label.new()
-		upgrades_header.add_theme_font_size_override("font_size", 14)
-		upgrades_header.text = "Upgrades:"
-		info_panel.add_child(upgrades_header)
-		for upg in unit.applied_upgrades:
-			var upg_lbl := Label.new()
-			upg_lbl.add_theme_font_size_override("font_size", 12)
-			upg_lbl.text = "  %s — %s" % [upg.name, upg.desc]
-			info_panel.add_child(upg_lbl)
+	info_panel.add_child(HSeparator.new())
+	var upgrades_header := Label.new()
+	upgrades_header.add_theme_font_size_override("font_size", 14)
+	upgrades_header.text = "Upgrades (%d/%d):" % [unit.applied_upgrades.size(), unit.get_max_upgrades()]
+	info_panel.add_child(upgrades_header)
+	for upg in unit.applied_upgrades:
+		var upg_lbl := Label.new()
+		upg_lbl.add_theme_font_size_override("font_size", 12)
+		upg_lbl.text = "  %s — %s" % [upg.name, upg.desc]
+		info_panel.add_child(upg_lbl)
 
 	info_panel.add_child(HSeparator.new())
 

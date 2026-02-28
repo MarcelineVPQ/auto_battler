@@ -8,13 +8,18 @@ enum Team { PLAYER, ENEMY }
 var unit_data: UnitData
 var team: Team = Team.PLAYER
 var is_dead: bool = false
-var merge_count: int = 0  # how many times this unit has been merged
+var xp: int = 0
+var level: int = 1
+const XP_TO_LEVEL: int = 4
 
 # Tracks per-stat purchase count (for escalating cost)
 var stat_purchases: Dictionary = {}  # stat_key -> int
 
 # Tracks named upgrades applied from shop
 var applied_upgrades: Array[Dictionary] = []
+
+# Summoner-specific: necromancy stacks cause summoned archers to inherit stats
+var necromancy_stacks: int = 0
 
 # Runtime stats (copied from UnitData, can be upgraded)
 var max_hp: int
@@ -39,6 +44,7 @@ var ability_timer: float = 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var health_bar: ProgressBar = $HealthBar
+@onready var armor_bar: ProgressBar = $ArmorBar
 @onready var name_label: Label = $NameLabel
 
 func setup(data: UnitData, t: Team, pos: Vector2) -> void:
@@ -77,30 +83,47 @@ func _update_visuals() -> void:
 	health_bar.max_value = max_hp
 	health_bar.value = current_hp
 
+	# Armor bar — visible only when armor > 0
+	_update_armor_bar()
+
 	# Name label
 	name_label.text = unit_data.unit_name
 
 	# Scale grows with power (merges + stat purchases)
 	update_scale()
 
+const PREMIUM_STATS: Array[String] = ["evasion", "crit_chance", "skill_proc_chance"]
+
 func get_stat_upgrade_cost(stat_key: String) -> int:
 	var purchases: int = stat_purchases.get(stat_key, 0)
-	# Base cost 2, increases by 1 every 2 purchases
-	return 2 + int(purchases / 2)
+	if stat_key in PREMIUM_STATS:
+		return 2 + int(purchases / 4)
+	return 1 + int(purchases / 5)
+
+func get_max_upgrades() -> int:
+	return level + 1
 
 func record_stat_purchase(stat_key: String) -> void:
 	stat_purchases[stat_key] = stat_purchases.get(stat_key, 0) + 1
 	update_scale()
 
 func update_scale() -> void:
-	# Total "power" from merges and stat purchases
+	# Base scale from level: 0.4 + 0.1 per level above 1
+	var base_s: float = 0.4 + (level - 1) * 0.1
+	# Small increment from stat purchases
 	var total_purchases: int = 0
 	for key in stat_purchases:
 		total_purchases += stat_purchases[key]
-	var power: float = merge_count * 5.0 + total_purchases
-	# Scale: base 0.4, grows by 0.02 per power point, max ~0.8
-	var s: float = clampf(0.4 + power * 0.02, 0.4, 0.8)
+	var s: float = base_s + total_purchases * 0.005
 	sprite.scale = Vector2(s, s)
+
+func _update_armor_bar() -> void:
+	if armor > 0:
+		armor_bar.visible = true
+		armor_bar.max_value = armor
+		armor_bar.value = armor
+	else:
+		armor_bar.visible = false
 
 func take_damage(amount: int) -> Dictionary:
 	var result := {"hit": true, "damage": 0, "crit": false, "evaded": false}

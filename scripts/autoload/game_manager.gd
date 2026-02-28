@@ -16,7 +16,6 @@ const INCOME_SCALE_ROUND: int = 7
 const VICTORY_BONUS: int = 2
 const INTEREST_RATE: float = 0.10
 const MAX_INTEREST: int = 5
-const STAT_UPGRADE_COST: int = 2
 const REROLL_COST: int = 2
 
 var current_phase: Phase = Phase.WAVE_SELECT

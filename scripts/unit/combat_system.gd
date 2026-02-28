@@ -2,12 +2,14 @@ class_name CombatSystem
 extends Node
 
 signal combat_ended(player_won: bool)
+signal summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit)
 
 const TICK_INTERVAL: float = 0.5
 
 var board: Board
 var is_fighting: bool = false
 var tick_timer: float = 0.0
+var archer_data: UnitData = preload("res://resources/units/archer.tres")
 
 func setup(b: Board) -> void:
 	board = b
@@ -69,6 +71,14 @@ func _process_tick() -> void:
 			continue
 
 		var dist := unit.position.distance_to(target.position)
+
+		# Summoner: spawn archers instead of attacking
+		if unit.unit_data.unit_class == "Summoner":
+			if unit.can_attack():
+				unit.reset_attack_cooldown()
+				var offset := Vector2(randf_range(-30, 30), randf_range(-30, 30))
+				summon_requested.emit(archer_data, unit.team, unit.position + offset, unit)
+			continue
 
 		if dist <= unit.attack_range:
 			# In range — attack if ready
