@@ -118,9 +118,10 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	)
 	attacker._update_mana_bar()
 
-	# Calculate damage with crit
+	# Calculate damage with crit (target vulnerability increases crit chance)
 	var atk_damage := attacker.damage
-	var is_crit := attacker.roll_crit()
+	var effective_crit := attacker.crit_chance + target.crit_vulnerability
+	var is_crit := randf() * 100.0 < effective_crit
 	if is_crit:
 		atk_damage *= 2
 
@@ -175,7 +176,7 @@ func _trigger_ability(unit: Unit) -> void:
 		"Priest":
 			# Heal all allied units
 			var allies := board.get_units_on_team(unit.team)
-			var heal_amount := int(unit.damage * 2.5)
+			var heal_amount := int(unit.damage * 4.0)
 			for ally in allies:
 				if ally.is_dead:
 					continue
@@ -183,9 +184,19 @@ func _trigger_ability(unit: Unit) -> void:
 				ally.health_bar.value = ally.current_hp
 			combat_event.emit("[color=%s]%s casts %s — heals all allies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, heal_amount])
 		"Warlock":
-			# Curse: next attack on target deals double damage (simulated as temp damage buff)
-			unit.damage = int(ceil(unit.damage * 1.5))
-			combat_event.emit("[color=%s]%s casts %s — damage surges![/color]" % [team_tag, u_name, unit.unit_data.ability_name])
+			# Vulnerable Curse: enemies within 200px get +20 crit vulnerability
+			var curse_range := 200.0
+			var enemies := board.get_units_on_team(
+				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
+			)
+			var cursed := 0
+			for enemy in enemies:
+				if enemy.is_dead:
+					continue
+				if unit.position.distance_to(enemy.position) <= curse_range:
+					enemy.crit_vulnerability += 20.0
+					cursed += 1
+			combat_event.emit("[color=%s]%s casts %s — %d enemies take +20%% crit![/color]" % [team_tag, u_name, unit.unit_data.ability_name, cursed])
 		"Herbalist":
 			# Poison all enemies (deal damage over time simulated as instant AoE)
 			var enemies := board.get_units_on_team(

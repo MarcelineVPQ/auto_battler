@@ -22,10 +22,12 @@ extends Resource
 @export var mana_cost_per_attack: int = 5
 @export var mana_regen_per_second: float = 2.5
 @export var ability_name: String = ""
+@export var ability_desc: String = ""
 @export var ability_cooldown: float = 5.0
 
 # Skill (passive — not all heroes have one)
 @export var skill_name: String = ""
+@export var skill_desc: String = ""
 
 # Boosted stats (display only for now)
 @export var boosted_stats: PackedStringArray = []

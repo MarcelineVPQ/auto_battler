@@ -1324,8 +1324,12 @@ func _show_info_panel(unit: Unit) -> void:
 	var extras := Label.new()
 	extras.add_theme_font_size_override("font_size", 12)
 	var text := "Ability: %s" % unit.unit_data.ability_name
+	if unit.unit_data.ability_desc != "":
+		text += "\n  %s" % unit.unit_data.ability_desc
 	if unit.unit_data.skill_name != "":
 		text += "\nSkill: %s" % unit.unit_data.skill_name
+		if unit.unit_data.skill_desc != "":
+			text += "\n  %s" % unit.unit_data.skill_desc
 	if unit.unit_data.boosted_stats.size() > 0:
 		text += "\nBoosted: %s" % ", ".join(unit.unit_data.boosted_stats)
 	extras.text = text
@@ -1397,8 +1401,12 @@ func _show_shop_preview(idx: int) -> void:
 		var extras := Label.new()
 		extras.add_theme_font_size_override("font_size", 12)
 		var text := "Ability: %s" % data.ability_name
+		if data.ability_desc != "":
+			text += "\n  %s" % data.ability_desc
 		if data.skill_name != "":
 			text += "\nSkill: %s" % data.skill_name
+			if data.skill_desc != "":
+				text += "\n  %s" % data.skill_desc
 		if data.boosted_stats.size() > 0:
 			text += "\nBoosted: %s" % ", ".join(data.boosted_stats)
 		extras.text = text

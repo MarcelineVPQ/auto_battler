@@ -34,6 +34,7 @@ var move_speed: float
 var armor: int
 var evasion: float
 var crit_chance: float
+var crit_vulnerability: float = 0.0
 var skill_proc_chance: float
 var max_mana: int
 var current_mana: int

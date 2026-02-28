@@ -5,11 +5,11 @@ const ARENA_WIDTH: float = 860.0
 const ARENA_HEIGHT: float = 380.0
 const DIVIDER_X: float = ARENA_WIDTH / 2.0
 
-# Placement grid (8x8 within player half)
-const GRID_COLS: int = 8
-const GRID_ROWS: int = 8
-const GRID_CELL_W: float = DIVIDER_X / GRID_COLS   # ~53.75
-const GRID_CELL_H: float = ARENA_HEIGHT / GRID_ROWS # 60
+# Placement grid (5x5 within player half — sized to fit unit visuals)
+const GRID_COLS: int = 5
+const GRID_ROWS: int = 5
+const GRID_CELL_W: float = DIVIDER_X / GRID_COLS   # ~86
+const GRID_CELL_H: float = ARENA_HEIGHT / GRID_ROWS # ~76
 const GRID_DOT_RADIUS: float = 6.0
 
 var all_units: Array[Unit] = []
