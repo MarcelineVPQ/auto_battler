@@ -138,12 +138,16 @@ var _pending_upgrade_slot: int = -1
 
 # Shop confirmation state
 var _selected_shop_slot: int = -1
+var _shift_held_on_select: bool = false
 var shop_confirm_bar: HBoxContainer
 var buy_button: Button
 var cancel_button: Button
 
 # Currently shown info unit (for refreshing)
 var _info_unit: Unit = null
+
+# Warning feedback label
+var warning_label: Label
 
 # Battle UI — strength bar & combat log
 var strength_bar_container: HBoxContainer
@@ -164,6 +168,7 @@ func _ready() -> void:
 	GameManager.lives_changed.connect(func(_l): _update_ui())
 	GameManager.game_over.connect(_on_game_over)
 
+	_build_warning_label()
 	_build_wave_select_ui()
 	_build_shop_bar()
 	_build_battle_ui()
@@ -174,6 +179,27 @@ func _ready() -> void:
 	combat_system.tick_completed.connect(_on_tick_completed)
 
 	GameManager.advance_round()
+
+# ── Warning Label ──────────────────────────────────────────
+
+func _build_warning_label() -> void:
+	warning_label = Label.new()
+	warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warning_label.add_theme_font_size_override("font_size", 18)
+	warning_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	warning_label.position = Vector2(330, 395)
+	warning_label.size = Vector2(300, 30)
+	warning_label.visible = false
+	ui_layer.add_child(warning_label)
+
+func _show_warning(text: String) -> void:
+	warning_label.text = text
+	warning_label.modulate = Color(1, 1, 1, 1)
+	warning_label.visible = true
+	var tween := create_tween()
+	tween.tween_interval(1.0)
+	tween.tween_property(warning_label, "modulate", Color(1, 1, 1, 0), 0.5)
+	tween.tween_callback(func(): warning_label.visible = false)
 
 # ── Battle UI (Strength Bar + Combat Log) ──────────────────
 
@@ -561,6 +587,7 @@ func _on_shop_card_pressed(idx: int) -> void:
 
 func _select_shop_slot(idx: int) -> void:
 	_selected_shop_slot = idx
+	_shift_held_on_select = Input.is_key_pressed(KEY_SHIFT)
 	_update_shop_display()
 	# Position confirm bar below the selected shop button
 	var btn: Button = shop_buttons[idx]
@@ -573,6 +600,7 @@ func _cancel_shop_selection() -> void:
 	if _selected_shop_slot < 0:
 		return
 	_selected_shop_slot = -1
+	_shift_held_on_select = false
 	shop_confirm_bar.visible = false
 	_hide_info_panel()
 	_update_shop_display()
@@ -596,8 +624,9 @@ func _buy_hero(idx: int) -> void:
 
 	# Auto-merge: if a same-class unit exists and Shift is NOT held, feed as XP
 	var merge_target := _find_player_unit_by_class(data.unit_class)
-	if merge_target and not Input.is_key_pressed(KEY_SHIFT):
+	if merge_target and not _shift_held_on_select:
 		if not GameManager.spend_gold(slot.cost):
+			_show_warning("Not enough gold!")
 			return
 		_grant_xp(merge_target, 1)
 		slot.sold = true
@@ -609,8 +638,10 @@ func _buy_hero(idx: int) -> void:
 
 	# Spawn new unit — check farm budget
 	if _get_farms_used() + data.pop_cost > GameManager.farms:
+		_show_warning("Not enough farms!")
 		return
 	if not GameManager.spend_gold(slot.cost):
+		_show_warning("Not enough gold!")
 		return
 
 	var default_pos := board.snap_to_grid(Vector2(
@@ -632,6 +663,7 @@ func _buy_upgrade(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
 
 	if not GameManager.spend_gold(slot.cost):
+		_show_warning("Not enough gold!")
 		return
 
 	slot.sold = true
@@ -645,12 +677,14 @@ func _buy_upgrade(idx: int) -> void:
 
 func _apply_pending_upgrade(unit: Unit) -> void:
 	if unit.applied_upgrades.size() >= unit.get_max_upgrades():
+		_show_warning("Unit has max upgrades!")
 		return
 	var slot: Dictionary = shop_slots[_pending_upgrade_slot]
 	var upgrade: Dictionary = slot.data
 
 	# Validate class restriction
 	if upgrade.has("class_req") and unit.unit_data.unit_class != upgrade.class_req:
+		_show_warning("Wrong unit class!")
 		return
 
 	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
@@ -1126,6 +1160,7 @@ func _on_ready_pressed() -> void:
 	if GameManager.current_phase != GameManager.Phase.PREP:
 		return
 	if board.get_units_on_team(Unit.Team.PLAYER).is_empty():
+		_show_warning("Place units first!")
 		return
 	_cancel_shop_selection()
 	_save_squad()
@@ -1202,7 +1237,9 @@ func _get_farms_used() -> int:
 func _on_buy_farm_pressed() -> void:
 	if GameManager.current_phase != GameManager.Phase.PREP:
 		return
-	GameManager.buy_farm()
+	if not GameManager.buy_farm():
+		_show_warning("Not enough gold!")
+		return
 	_update_ui()
 
 # ── UI Updates ──────────────────────────────────────────────
