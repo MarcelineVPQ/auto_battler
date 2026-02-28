@@ -8,6 +8,7 @@ script = ExtResource("1")
 unit_name = "Lyra"
 unit_class = "Archer"
 farm_cost = 2
+pop_cost = 3
 max_hp = 55
 damage = 11
 attacks_per_second = 0.8

@@ -7,7 +7,8 @@ extends Node2D
 @onready var round_label: Label = $UI/TopBar/RoundLabel
 @onready var lives_label: Label = $UI/SidePanel/LivesLabel
 @onready var gold_label: Label = $UI/SidePanel/GoldLabel
-@onready var cap_label: Label = $UI/SidePanel/CapLabel
+@onready var farms_label: Label = $UI/SidePanel/FarmsLabel
+@onready var buy_farm_button: Button = $UI/SidePanel/BuyFarmButton
 @onready var info_scroll: ScrollContainer = $UI/InfoScroll
 @onready var info_panel: VBoxContainer = $UI/InfoScroll/InfoPanel
 @onready var ui_layer: CanvasLayer = $UI
@@ -135,6 +136,12 @@ var shop_frozen: bool = false
 var _targeting_upgrade: bool = false
 var _pending_upgrade_slot: int = -1
 
+# Shop confirmation state
+var _selected_shop_slot: int = -1
+var shop_confirm_bar: HBoxContainer
+var buy_button: Button
+var cancel_button: Button
+
 # Currently shown info unit (for refreshing)
 var _info_unit: Unit = null
 
@@ -150,6 +157,7 @@ func _ready() -> void:
 	combat_system.combat_ended.connect(_on_combat_ended)
 	combat_system.summon_requested.connect(_on_summon_requested)
 	ready_button.pressed.connect(_on_ready_pressed)
+	buy_farm_button.pressed.connect(_on_buy_farm_pressed)
 
 	GameManager.phase_changed.connect(_on_phase_changed)
 	GameManager.gold_changed.connect(func(_g): _update_ui())
@@ -282,8 +290,8 @@ func _show_wave_select() -> void:
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(240, 180)
-		btn.text = "%s\n\n%s\n\n%d units\nStrategy: %s" % [
-			wave.name, wave.enemy_text, wave.total_units, wave.strategy
+		btn.text = "%s\n\n%s\n\n%d units (%d farms)\nStrategy: %s" % [
+			wave.name, wave.enemy_text, wave.total_units, wave.total_farms, wave.strategy
 		]
 		var idx := i
 		btn.pressed.connect(func(): _on_wave_selected(idx))
@@ -302,10 +310,8 @@ func _generate_wave_options() -> Array[Dictionary]:
 
 func _generate_single_wave() -> Dictionary:
 	var round_num := GameManager.current_round
-	# Aggressive enemy count scaling: starts at 1, reaches ~20 by round 20
-	var min_enemies := clampi(ceili(round_num * 0.6), 1, 16)
-	var max_enemies := clampi(ceili(round_num * 1.1), 1, 22)
-	var enemy_count := randi_range(min_enemies, max_enemies)
+	# Farm budget starts at 1 and scales up: ~1 unit round 1, ~2 round 2, etc.
+	var enemy_farm_budget := round_num + randi_range(0, maxi(round_num / 3, 1))
 
 	# Enemy level scales with rounds
 	var base_level := clampi(ceili(round_num / 3.0), 1, 7)
@@ -315,15 +321,20 @@ func _generate_single_wave() -> Dictionary:
 	var weighted_pool: Array[UnitData] = _build_weighted_pool(strat.weights)
 
 	var enemies: Array[Dictionary] = []
+	var budget_used := 0
+	var max_attempts := 50
+	var attempts := 0
 	# Group enemies by class+level for display
 	var counts: Dictionary = {}
-	for j in range(enemy_count):
+	while budget_used < enemy_farm_budget and attempts < max_attempts:
 		var data: UnitData = weighted_pool.pick_random()
-		# Vary level slightly: base_level +/- 1
-		var lvl := clampi(base_level + randi_range(-1, 1), 1, 10)
-		enemies.append({"data": data, "level": lvl})
-		var key := "%s Lv%d" % [data.unit_class, lvl]
-		counts[key] = counts.get(key, 0) + 1
+		if budget_used + data.pop_cost <= enemy_farm_budget:
+			var lvl := clampi(base_level + randi_range(-1, 1), 1, 10)
+			enemies.append({"data": data, "level": lvl})
+			budget_used += data.pop_cost
+			var key := "%s Lv%d" % [data.unit_class, lvl]
+			counts[key] = counts.get(key, 0) + 1
+		attempts += 1
 
 	var enemy_text := ""
 	for key in counts:
@@ -333,7 +344,8 @@ func _generate_single_wave() -> Dictionary:
 		"name": strat.label,
 		"strategy": strat.strategy,
 		"enemies": enemies,
-		"total_units": enemy_count,
+		"total_units": enemies.size(),
+		"total_farms": budget_used,
 		"enemy_text": enemy_text.strip_edges(),
 	}
 
@@ -384,16 +396,16 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 445)
+	shop_bar.position = Vector2(30, 428)
 	shop_bar.add_theme_constant_override("separation", 8)
 	ui_layer.add_child(shop_bar)
 
 	for i in range(HERO_SHOP_SLOTS + UPGRADE_SHOP_SLOTS):
 		var btn := Button.new()
 		if i < HERO_SHOP_SLOTS:
-			btn.custom_minimum_size = Vector2(140, 130)
+			btn.custom_minimum_size = Vector2(140, 90)
 		else:
-			btn.custom_minimum_size = Vector2(120, 130)
+			btn.custom_minimum_size = Vector2(120, 90)
 		var idx := i
 		btn.pressed.connect(func(): _on_shop_card_pressed(idx))
 		shop_bar.add_child(btn)
@@ -405,24 +417,43 @@ func _build_shop_bar() -> void:
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
 	reroll_button = Button.new()
-	reroll_button.custom_minimum_size = Vector2(90, 130)
+	reroll_button.custom_minimum_size = Vector2(90, 90)
 	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	shop_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
-	freeze_button.custom_minimum_size = Vector2(50, 130)
+	freeze_button.custom_minimum_size = Vector2(50, 90)
 	freeze_button.text = "F\nFreeze"
 	freeze_button.pressed.connect(_on_freeze_pressed)
 	shop_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
-	sell_button.custom_minimum_size = Vector2(50, 130)
+	sell_button.custom_minimum_size = Vector2(50, 90)
 	sell_button.text = "X\nSell"
 	sell_button.pressed.connect(_on_sell_pressed)
 	shop_bar.add_child(sell_button)
 
+	# Confirm bar (Buy / Cancel) — hidden until a shop card is selected
+	shop_confirm_bar = HBoxContainer.new()
+	shop_confirm_bar.add_theme_constant_override("separation", 6)
+	shop_confirm_bar.visible = false
+	ui_layer.add_child(shop_confirm_bar)
+
+	buy_button = Button.new()
+	buy_button.text = "Buy"
+	buy_button.custom_minimum_size = Vector2(60, 30)
+	buy_button.pressed.connect(_confirm_shop_purchase)
+	shop_confirm_bar.add_child(buy_button)
+
+	cancel_button = Button.new()
+	cancel_button.text = "Cancel"
+	cancel_button.custom_minimum_size = Vector2(60, 30)
+	cancel_button.pressed.connect(_cancel_shop_selection)
+	shop_confirm_bar.add_child(cancel_button)
+
 func _roll_shop() -> void:
+	_cancel_shop_selection()
 	shop_slots.clear()
 	for i in range(HERO_SHOP_SLOTS):
 		var data: UnitData = hero_pool.pick_random()
@@ -447,7 +478,7 @@ func _update_shop_display() -> void:
 			btn.disabled = true
 		elif slot.type == "hero":
 			var data: UnitData = slot.data
-			var label := "%dg\n\n%s\n%s" % [data.farm_cost, data.unit_class, data.unit_name]
+			var label := "%dg [F:%d]\n\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, data.unit_name]
 			if _find_player_unit_by_class(data.unit_class):
 				label += "\n\nAuto: Use as EXP\n(Shift: new copy)"
 			btn.text = label
@@ -463,6 +494,8 @@ func _update_shop_display() -> void:
 				btn.modulate = Color(0.85, 0.6, 1.0)
 			elif upgrade.rarity == "Epic":
 				btn.modulate = Color(1.0, 0.7, 0.3)
+		if i == _selected_shop_slot and not slot.sold:
+			btn.modulate = btn.modulate.lightened(0.35)
 
 	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
@@ -478,10 +511,38 @@ func _on_shop_card_pressed(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
 	if slot.sold:
 		return
+	_select_shop_slot(idx)
+
+func _select_shop_slot(idx: int) -> void:
+	_selected_shop_slot = idx
+	_update_shop_display()
+	# Position confirm bar below the selected shop button
+	var btn: Button = shop_buttons[idx]
+	var btn_global := btn.global_position
+	shop_confirm_bar.position = Vector2(btn_global.x, btn_global.y + btn.size.y + 4)
+	shop_confirm_bar.visible = true
+	_show_shop_preview(idx)
+
+func _cancel_shop_selection() -> void:
+	if _selected_shop_slot < 0:
+		return
+	_selected_shop_slot = -1
+	shop_confirm_bar.visible = false
+	_hide_info_panel()
+	_update_shop_display()
+
+func _confirm_shop_purchase() -> void:
+	if _selected_shop_slot < 0:
+		return
+	var idx := _selected_shop_slot
+	var slot: Dictionary = shop_slots[idx]
+	_selected_shop_slot = -1
+	shop_confirm_bar.visible = false
 	if slot.type == "hero":
 		_buy_hero(idx)
 	else:
 		_buy_upgrade(idx)
+	_update_shop_display()
 
 func _buy_hero(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
@@ -500,9 +561,8 @@ func _buy_hero(idx: int) -> void:
 		_update_ui()
 		return
 
-	# Spawn new unit
-	var player_count := board.get_units_on_team(Unit.Team.PLAYER).size()
-	if player_count >= GameManager.squad_cap:
+	# Spawn new unit — check farm budget
+	if _get_farms_used() + data.pop_cost > GameManager.farms:
 		return
 	if not GameManager.spend_gold(slot.cost):
 		return
@@ -589,6 +649,7 @@ func _show_shop() -> void:
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
+	shop_confirm_bar.visible = false
 
 # ── Sell ─────────────────────────────────────────────────────
 
@@ -927,6 +988,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if GameManager.current_phase == GameManager.Phase.WAVE_SELECT:
 		return
 
+	# Cancel shop selection on right-click or Escape
+	if _selected_shop_slot >= 0:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			_cancel_shop_selection()
+			return
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			_cancel_shop_selection()
+			return
+
 	# Cancel upgrade targeting on right-click or Escape
 	if _targeting_upgrade:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
@@ -1012,6 +1082,7 @@ func _on_ready_pressed() -> void:
 		return
 	if board.get_units_on_team(Unit.Team.PLAYER).is_empty():
 		return
+	_cancel_shop_selection()
 	_save_squad()
 	_hide_shop()
 	_hide_info_panel()
@@ -1063,14 +1134,29 @@ func _on_game_over() -> void:
 	ready_button.disabled = true
 	_hide_shop()
 
+# ── Farm Helpers ─────────────────────────────────────────────
+
+func _get_farms_used() -> int:
+	var total := 0
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		total += unit.unit_data.pop_cost
+	return total
+
+func _on_buy_farm_pressed() -> void:
+	if GameManager.current_phase != GameManager.Phase.PREP:
+		return
+	GameManager.buy_farm()
+	_update_ui()
+
 # ── UI Updates ──────────────────────────────────────────────
 
 func _update_ui() -> void:
 	round_label.text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
 	lives_label.text = "Lives: %d" % GameManager.lives
 	gold_label.text = "Gold: %d" % GameManager.gold
-	var player_count := board.get_units_on_team(Unit.Team.PLAYER).size()
-	cap_label.text = "Squad: %d" % player_count
+	farms_label.text = "Farms: %d/%d" % [_get_farms_used(), GameManager.farms]
+	buy_farm_button.text = "Buy Farm (%dg)" % GameManager.get_farm_cost()
+	buy_farm_button.disabled = GameManager.gold < GameManager.get_farm_cost() or GameManager.current_phase != GameManager.Phase.PREP
 
 	match GameManager.current_phase:
 		GameManager.Phase.WAVE_SELECT:
@@ -1106,7 +1192,7 @@ func _show_info_panel(unit: Unit) -> void:
 	# Header
 	var header := Label.new()
 	header.add_theme_font_size_override("font_size", 16)
-	var header_text := "%s\n%s  (Cost: %dg)" % [unit.unit_data.unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost]
+	var header_text := "%s\n%s  (Cost: %dg  Farms: %d)" % [unit.unit_data.unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
 	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
 	header.text = header_text
 	info_panel.add_child(header)
@@ -1179,6 +1265,66 @@ func _add_stat_display(label_text: String, value_text: String) -> void:
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.text = "     %s: %s" % [label_text, value_text]
 	info_panel.add_child(lbl)
+
+func _show_shop_preview(idx: int) -> void:
+	var slot: Dictionary = shop_slots[idx]
+	_info_unit = null
+	info_scroll.visible = true
+
+	# Clear existing children
+	while info_panel.get_child_count() > 0:
+		var child := info_panel.get_child(0)
+		info_panel.remove_child(child)
+		child.queue_free()
+
+	if slot.type == "hero":
+		var data: UnitData = slot.data
+		var header := Label.new()
+		header.add_theme_font_size_override("font_size", 16)
+		header.text = "%s\n%s  (Cost: %dg  Farms: %d)" % [data.unit_name, data.unit_class, data.farm_cost, data.pop_cost]
+		var merge_target := _find_player_unit_by_class(data.unit_class)
+		if merge_target:
+			header.text += "\nAuto-merge into existing unit"
+		info_panel.add_child(header)
+
+		info_panel.add_child(HSeparator.new())
+
+		var stats := Label.new()
+		stats.add_theme_font_size_override("font_size", 13)
+		stats.text = "Damage: %d\nAtk/Sec: %.2f\nAbility CD: %.1fs\nHealth: %d\nMana: %d\nArmor: %d\nEvasion: %.0f%%\nAtk Range: %.0f\nMove Speed: %.0f\nCrit: %.0f%%\nSkill Proc: %.0f%%" % [
+			data.damage, data.attacks_per_second, data.ability_cooldown,
+			data.max_hp, data.max_mana, data.armor, data.evasion,
+			data.attack_range, data.move_speed, data.crit_chance, data.skill_proc_chance
+		]
+		info_panel.add_child(stats)
+
+		info_panel.add_child(HSeparator.new())
+
+		var extras := Label.new()
+		extras.add_theme_font_size_override("font_size", 12)
+		var text := "Ability: %s" % data.ability_name
+		if data.skill_name != "":
+			text += "\nSkill: %s" % data.skill_name
+		if data.boosted_stats.size() > 0:
+			text += "\nBoosted: %s" % ", ".join(data.boosted_stats)
+		extras.text = text
+		info_panel.add_child(extras)
+	else:
+		var upgrade: Dictionary = slot.data
+		var header := Label.new()
+		header.add_theme_font_size_override("font_size", 16)
+		header.text = "%s\n%s  (Cost: %dg)" % [upgrade.name, upgrade.rarity, upgrade.cost]
+		info_panel.add_child(header)
+
+		info_panel.add_child(HSeparator.new())
+
+		var desc := Label.new()
+		desc.add_theme_font_size_override("font_size", 13)
+		var desc_text := "Effect: %s" % upgrade.desc
+		if upgrade.has("class_req"):
+			desc_text += "\nRequires: %s" % upgrade.class_req
+		desc.text = desc_text
+		info_panel.add_child(desc)
 
 func _hide_info_panel() -> void:
 	info_scroll.visible = false

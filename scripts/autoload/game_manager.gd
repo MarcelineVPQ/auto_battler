@@ -6,11 +6,14 @@ signal phase_changed(new_phase: Phase)
 signal round_ended(player_won: bool)
 signal gold_changed(new_amount: int)
 signal lives_changed(new_lives: int)
+signal farms_changed
 signal game_over
 
 const MAX_ROUNDS: int = 20
 const STARTING_GOLD: int = 10
 const STARTING_LIVES: int = 4
+const STARTING_FARMS: int = 5
+const BASE_FARM_COST: int = 1
 const BASE_INCOME: int = 12
 const INCOME_SCALE_ROUND: int = 7
 const VICTORY_BONUS: int = 2
@@ -22,7 +25,8 @@ var current_phase: Phase = Phase.WAVE_SELECT
 var current_round: int = 0
 var gold: int = STARTING_GOLD
 var lives: int = STARTING_LIVES
-var squad_cap: int = 64  # No artificial cap — limited by board grid slots
+var farms: int = STARTING_FARMS
+var farm_purchases: int = 0
 var last_round_won: bool = false
 
 func change_phase(new_phase: Phase) -> void:
@@ -69,12 +73,26 @@ func spend_gold(amount: int) -> bool:
 		return true
 	return false
 
+func get_farm_cost() -> int:
+	return BASE_FARM_COST + farm_purchases
+
+func buy_farm() -> bool:
+	var cost := get_farm_cost()
+	if not spend_gold(cost):
+		return false
+	farms += 1
+	farm_purchases += 1
+	farms_changed.emit()
+	return true
+
 func reset() -> void:
 	current_phase = Phase.WAVE_SELECT
 	current_round = 0
 	gold = STARTING_GOLD
 	lives = STARTING_LIVES
-	squad_cap = 64
+	farms = STARTING_FARMS
+	farm_purchases = 0
 	last_round_won = false
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
+	farms_changed.emit()

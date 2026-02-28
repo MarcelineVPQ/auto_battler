@@ -4,6 +4,7 @@ extends Resource
 @export var unit_name: String = ""
 @export var unit_class: String = ""
 @export var farm_cost: int = 1
+@export var pop_cost: int = 1    # farm slots this unit occupies
 
 # Combat stats
 @export var max_hp: int = 60

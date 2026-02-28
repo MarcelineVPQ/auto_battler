@@ -8,6 +8,7 @@ script = ExtResource("1")
 unit_name = "Nyx"
 unit_class = "Summoner"
 farm_cost = 4
+pop_cost = 4
 max_hp = 50
 damage = 0
 attacks_per_second = 0.2

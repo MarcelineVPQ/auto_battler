@@ -19,6 +19,10 @@ var targeting_mode: bool = false
 
 @onready var units_container: Node2D = $Units
 
+func _process(_delta: float) -> void:
+	if selected_unit and is_instance_valid(selected_unit) and not selected_unit.is_dead:
+		queue_redraw()
+
 func _draw() -> void:
 	# Arena background
 	var arena_rect := Rect2(0, 0, ARENA_WIDTH, ARENA_HEIGHT)
