@@ -74,7 +74,7 @@ func spend_gold(amount: int) -> bool:
 	return false
 
 func get_farm_cost() -> int:
-	return BASE_FARM_COST + farm_purchases
+	return BASE_FARM_COST + (farm_purchases / 3)
 
 func buy_farm() -> bool:
 	var cost := get_farm_cost()
