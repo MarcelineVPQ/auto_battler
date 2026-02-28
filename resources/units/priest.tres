@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cprst00000002"]
+
+[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+unit_name = "Helena"
+unit_class = "Priest"
+farm_cost = 1
+max_hp = 65
+damage = 4
+attacks_per_second = 1.0
+attack_range = 180.0
+move_speed = 50.0
+armor = 0
+evasion = 5.0
+crit_chance = 2.0
+skill_proc_chance = 5.0
+max_mana = 8
+mana_cost_per_attack = 4
+mana_regen_per_second = 3.0
+ability_name = "Holy Armor"
+ability_cooldown = 4.0
+skill_name = "Double Strike"
+boosted_stats = PackedStringArray("Mana")

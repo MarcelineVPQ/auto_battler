@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cgrnt00000005"]
+
+[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+unit_name = "Korg"
+unit_class = "Grunt"
+farm_cost = 1
+max_hp = 120
+damage = 7
+attacks_per_second = 1.2
+attack_range = 80.0
+move_speed = 55.0
+armor = 3
+evasion = 0.0
+crit_chance = 5.0
+skill_proc_chance = 3.0
+max_mana = 5
+mana_cost_per_attack = 5
+mana_regen_per_second = 2.0
+ability_name = "Frenzy"
+ability_cooldown = 6.0
+skill_name = ""
+boosted_stats = PackedStringArray("Attack Speed", "Move Speed")

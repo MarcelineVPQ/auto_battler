@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cwrlk00000001"]
+
+[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+unit_name = "Garalt"
+unit_class = "Warlock"
+farm_cost = 1
+max_hp = 50
+damage = 14
+attacks_per_second = 0.5
+attack_range = 250.0
+move_speed = 40.0
+armor = 0
+evasion = 0.0
+crit_chance = 5.0
+skill_proc_chance = 5.0
+max_mana = 5
+mana_cost_per_attack = 5
+mana_regen_per_second = 2.5
+ability_name = "Vulnerable Curse"
+ability_cooldown = 5.76
+skill_name = "Reflect"
+boosted_stats = PackedStringArray("Ability Speed")

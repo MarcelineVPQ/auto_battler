@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://carch00000006"]
+
+[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+unit_name = "Lyra"
+unit_class = "Archer"
+farm_cost = 2
+max_hp = 55
+damage = 11
+attacks_per_second = 0.8
+attack_range = 280.0
+move_speed = 35.0
+armor = 0
+evasion = 0.0
+crit_chance = 8.0
+skill_proc_chance = 5.0
+max_mana = 5
+mana_cost_per_attack = 5
+mana_regen_per_second = 2.5
+ability_name = "Volley"
+ability_cooldown = 7.0
+skill_name = ""
+boosted_stats = PackedStringArray("Damage", "Crit Chance")
