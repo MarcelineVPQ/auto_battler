@@ -27,13 +27,40 @@ var hero_pool: Array[UnitData] = [
 
 # Upgrade definitions
 var upgrade_pool: Array[Dictionary] = [
+	# ── Cheap (2-3g) ──
 	{"name": "Corrosive", "cost": 2, "rarity": "Normal", "desc": "+2 damage", "stat": "damage", "amount": 2},
 	{"name": "Exploit Weakness", "cost": 2, "rarity": "Normal", "desc": "+3 damage", "stat": "damage", "amount": 3},
 	{"name": "Toughness", "cost": 2, "rarity": "Normal", "desc": "+20 max HP", "stat": "max_hp", "amount": 20},
+	{"name": "Swift Strikes", "cost": 2, "rarity": "Normal", "desc": "+0.1 atk/s", "stat": "attacks_per_second", "amount": 0.1},
+	{"name": "Iron Skin", "cost": 2, "rarity": "Normal", "desc": "+1 armor", "stat": "armor", "amount": 1},
+	{"name": "Keen Edge", "cost": 2, "rarity": "Normal", "desc": "+2% crit", "stat": "crit_chance", "amount": 2.0},
+	{"name": "Nimble", "cost": 2, "rarity": "Normal", "desc": "+3% evasion", "stat": "evasion", "amount": 3.0},
+	{"name": "Quickstep", "cost": 3, "rarity": "Normal", "desc": "+5 move speed", "stat": "move_speed", "amount": 5.0},
+	{"name": "Longshot", "cost": 3, "rarity": "Normal", "desc": "+30 atk range", "stat": "attack_range", "amount": 30.0},
+	{"name": "Vitality", "cost": 3, "rarity": "Normal", "desc": "+15 max HP", "stat": "max_hp", "amount": 15},
+	{"name": "Poison Tip", "cost": 3, "rarity": "Normal", "desc": "+1 damage", "stat": "damage", "amount": 1},
+	# ── Mid (4-6g) ──
 	{"name": "Deadly Focus", "cost": 5, "rarity": "Normal", "desc": "+5% crit", "stat": "crit_chance", "amount": 5.0},
 	{"name": "Revenge", "cost": 5, "rarity": "Normal", "desc": "+2 armor", "stat": "armor", "amount": 2},
+	{"name": "Bloodlust", "cost": 5, "rarity": "Normal", "desc": "+0.2 atk/s", "stat": "attacks_per_second", "amount": 0.2},
+	{"name": "Eagle Eye", "cost": 5, "rarity": "Normal", "desc": "+50 atk range", "stat": "attack_range", "amount": 50.0},
+	{"name": "Adrenaline", "cost": 4, "rarity": "Normal", "desc": "+8 move speed", "stat": "move_speed", "amount": 8.0},
+	{"name": "Giant Killer", "cost": 6, "rarity": "Normal", "desc": "+5 damage", "stat": "damage", "amount": 5},
+	{"name": "Arcane Surge", "cost": 4, "rarity": "Normal", "desc": "+3 max mana", "stat": "max_mana", "amount": 3},
+	{"name": "Primed", "cost": 5, "rarity": "Normal", "desc": "+4% skill proc", "stat": "skill_proc_chance", "amount": 4.0},
+	{"name": "Fortify", "cost": 6, "rarity": "Normal", "desc": "+3 armor", "stat": "armor", "amount": 3},
+	# ── Expensive (8-12g) ──
 	{"name": "Sepsis", "cost": 8, "rarity": "Normal", "desc": "+5% skill proc", "stat": "skill_proc_chance", "amount": 5.0},
+	{"name": "Thorns", "cost": 8, "rarity": "Normal", "desc": "+4 armor", "stat": "armor", "amount": 4},
+	{"name": "Vampirism", "cost": 8, "rarity": "Normal", "desc": "+8% evasion", "stat": "evasion", "amount": 8.0},
+	{"name": "Berserk", "cost": 10, "rarity": "Normal", "desc": "+0.3 atk/s", "stat": "attacks_per_second", "amount": 0.3},
+	{"name": "Last Stand", "cost": 10, "rarity": "Normal", "desc": "+40 max HP", "stat": "max_hp", "amount": 40},
+	{"name": "Relentless", "cost": 10, "rarity": "Normal", "desc": "+12 move speed", "stat": "move_speed", "amount": 12.0},
+	# ── Rare (15g) ──
 	{"name": "Nearly Fatal", "cost": 15, "rarity": "Rare", "desc": "+15% crit", "stat": "crit_chance", "amount": 15.0},
+	{"name": "Invincible", "cost": 15, "rarity": "Rare", "desc": "+15% evasion", "stat": "evasion", "amount": 15.0},
+	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "+10 damage", "stat": "damage", "amount": 10},
+	{"name": "Sniper", "cost": 15, "rarity": "Rare", "desc": "+100 atk range", "stat": "attack_range", "amount": 100.0},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
@@ -80,6 +107,11 @@ var wave_options: Array[Dictionary] = []
 var shop_bar: HBoxContainer
 var shop_buttons: Array[Button] = []
 var reroll_button: Button
+var freeze_button: Button
+var sell_button: Button
+
+# Shop freeze state
+var shop_frozen: bool = false
 
 # Upgrade targeting state
 var _targeting_upgrade: bool = false
@@ -239,7 +271,10 @@ func _on_wave_selected(idx: int) -> void:
 			unit.health_bar.value = unit.current_hp
 
 	_restore_squad()
-	_roll_shop()
+	if shop_frozen:
+		shop_frozen = false
+	else:
+		_roll_shop()
 	_show_shop()
 	GameManager.change_phase(GameManager.Phase.PREP)
 	_update_ui()
@@ -274,6 +309,18 @@ func _build_shop_bar() -> void:
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	shop_bar.add_child(reroll_button)
 
+	freeze_button = Button.new()
+	freeze_button.custom_minimum_size = Vector2(50, 130)
+	freeze_button.text = "F\nFreeze"
+	freeze_button.pressed.connect(_on_freeze_pressed)
+	shop_bar.add_child(freeze_button)
+
+	sell_button = Button.new()
+	sell_button.custom_minimum_size = Vector2(50, 130)
+	sell_button.text = "X\nSell"
+	sell_button.pressed.connect(_on_sell_pressed)
+	shop_bar.add_child(sell_button)
+
 func _roll_shop() -> void:
 	shop_slots.clear()
 	for i in range(HERO_SHOP_SLOTS):
@@ -302,6 +349,7 @@ func _update_shop_display() -> void:
 
 	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
+	_update_freeze_display()
 
 func _on_shop_card_pressed(idx: int) -> void:
 	if _targeting_upgrade:
@@ -398,6 +446,49 @@ func _show_shop() -> void:
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
+
+# ── Sell ─────────────────────────────────────────────────────
+
+func _on_sell_pressed() -> void:
+	_sell_selected_unit()
+
+func _sell_selected_unit() -> void:
+	if _targeting_upgrade:
+		return
+	if GameManager.current_phase != GameManager.Phase.PREP:
+		return
+	if not board.selected_unit or not is_instance_valid(board.selected_unit):
+		return
+	if board.selected_unit.team != Unit.Team.PLAYER:
+		return
+	var unit := board.selected_unit
+	var refund := unit.unit_data.farm_cost
+	GameManager.gold += refund
+	GameManager.gold_changed.emit(GameManager.gold)
+	board.remove_unit(unit)
+	unit.queue_free()
+	board.deselect()
+	_hide_info_panel()
+	_update_ui()
+
+# ── Freeze Shop ──────────────────────────────────────────────
+
+func _on_freeze_pressed() -> void:
+	_toggle_freeze()
+
+func _toggle_freeze() -> void:
+	if GameManager.current_phase != GameManager.Phase.PREP:
+		return
+	shop_frozen = not shop_frozen
+	_update_freeze_display()
+
+func _update_freeze_display() -> void:
+	if shop_frozen:
+		freeze_button.text = "F\nUnfreeze"
+		freeze_button.modulate = Color(0.5, 0.8, 1.0)
+	else:
+		freeze_button.text = "F\nFreeze"
+		freeze_button.modulate = Color(1, 1, 1)
 
 # ── Stat Upgrades ───────────────────────────────────────────
 
@@ -555,6 +646,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 			_cancel_upgrade_targeting()
+			return
+
+	# Keyboard shortcuts
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_X:
+			_sell_selected_unit()
+			return
+		if event.keycode == KEY_F:
+			_toggle_freeze()
 			return
 
 	var local_pos := board.get_local_mouse_position()

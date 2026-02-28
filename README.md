@@ -28,7 +28,9 @@ Inspired by [Some of You May Die](https://store.steampowered.com/app/4124920/Som
 
 - **Merging** — Drag a duplicate hero onto another of the same class for +25% all stats (up to 4x)
 - **Stat Upgrades** — Click "+" buttons in the info panel to boost individual stats with gold
-- **Shop Upgrades** — Buy upgrade cards, then click a hero to apply (targeting mode with crosshair cursor). Right-click to cancel and get a refund
+- **Shop Upgrades** — Buy upgrade cards, then click a hero to apply (targeting mode with crosshair cursor). Right-click to cancel and get a refund. 30 upgrades across 4 price tiers
+- **Sell** — Select a hero and press X to sell for its base cost
+- **Freeze** — Press F to lock the shop so it carries over to the next round
 - **Re-roll** — Spend 2g to refresh the shop
 - **Interest** — Earn 10% on saved gold (up to 5g/round)
 
@@ -40,6 +42,8 @@ Inspired by [Some of You May Die](https://store.steampowered.com/app/4124920/Som
 | Left drag | Reposition unit on arena |
 | Right click | Cancel upgrade targeting |
 | Escape | Cancel upgrade targeting |
+| X | Sell selected unit |
+| F | Freeze / unfreeze shop |
 | Click shop card | Buy hero or upgrade |
 
 ## Project Structure

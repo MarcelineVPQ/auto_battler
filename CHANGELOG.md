@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.0 — Expanded Upgrades, Sell & Freeze
+
+### Upgrade Pool Expansion (30 total, up from 7)
+- **Cheap (2-3g):** Swift Strikes, Iron Skin, Keen Edge, Nimble, Quickstep, Longshot, Vitality, Poison Tip
+- **Mid (4-6g):** Bloodlust, Eagle Eye, Adrenaline, Giant Killer, Arcane Surge, Primed, Fortify
+- **Expensive (8-12g):** Thorns, Vampirism, Berserk, Last Stand, Relentless
+- **Rare (15g):** Invincible, Haymaker, Sniper
+- All stat types now have at least one upgrade at multiple price tiers
+
+### Sell Units
+- Press **X** or click the **Sell** button to sell the selected player hero
+- Refunds the hero's base farm cost in gold
+- Blocked during upgrade targeting and outside prep phase
+
+### Freeze Shop
+- Press **F** or click the **Freeze** button to lock the current shop
+- Frozen shop carries over to the next round instead of re-rolling
+- Button turns blue and reads "Unfreeze" when active; press again to toggle off
+- Freeze resets after the shop is preserved (one-round hold)
+
+---
+
 ## v0.1.0 — Initial Release
 
 ### Core Systems

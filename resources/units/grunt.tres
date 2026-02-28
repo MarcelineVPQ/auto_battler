@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cgrnt00000005"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -22,4 +22,4 @@ mana_regen_per_second = 2.0
 ability_name = "Frenzy"
 ability_cooldown = 6.0
 skill_name = ""
-boosted_stats = PackedStringArray("Attack Speed", "Move Speed")
+boosted_stats = []

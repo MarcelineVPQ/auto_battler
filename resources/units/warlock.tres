@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cwrlk00000001"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -22,4 +22,4 @@ mana_regen_per_second = 2.5
 ability_name = "Vulnerable Curse"
 ability_cooldown = 5.76
 skill_name = "Reflect"
-boosted_stats = PackedStringArray("Ability Speed")
+boosted_stats = []

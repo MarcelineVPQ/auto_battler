@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://casas00000007"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
@@ -22,4 +22,4 @@ mana_regen_per_second = 3.0
 ability_name = "Shadowstrike"
 ability_cooldown = 5.0
 skill_name = ""
-boosted_stats = PackedStringArray("Crit Chance", "Evasion")
+boosted_stats = []
