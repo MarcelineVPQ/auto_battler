@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://carch00000006"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://carch00000006"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://clh5mdyx1aw3p" path="res://assets/icons/archer.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -23,3 +24,4 @@ ability_name = "Volley"
 ability_cooldown = 7.0
 skill_name = ""
 boosted_stats = []
+texture = ExtResource("2")

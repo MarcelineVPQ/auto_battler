@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Grunt: Crossed swords - aggressive melee fighter -->
+  <circle cx="64" cy="64" r="60" fill="#8B4513" stroke="#D2691E" stroke-width="4"/>
+  <!-- Left sword -->
+  <line x1="30" y1="95" x2="85" y2="25" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
+  <line x1="78" y1="32" x2="95" y2="22" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
+  <line x1="82" y1="22" x2="95" y2="35" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
+  <!-- Right sword -->
+  <line x1="98" y1="95" x2="43" y2="25" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
+  <line x1="50" y1="32" x2="33" y2="22" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
+  <line x1="46" y1="22" x2="33" y2="35" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
+  <!-- Handle wraps -->
+  <line x1="38" y1="85" x2="45" y2="75" stroke="#CD853F" stroke-width="6" stroke-linecap="round"/>
+  <line x1="90" y1="85" x2="83" y2="75" stroke="#CD853F" stroke-width="6" stroke-linecap="round"/>
+</svg>

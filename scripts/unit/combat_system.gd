@@ -3,6 +3,8 @@ extends Node
 
 signal combat_ended(player_won: bool)
 signal summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit)
+signal combat_event(text: String)
+signal tick_completed()
 
 const TICK_INTERVAL: float = 0.5
 
@@ -78,6 +80,8 @@ func _process_tick() -> void:
 				unit.reset_attack_cooldown()
 				var offset := Vector2(randf_range(-30, 30), randf_range(-30, 30))
 				summon_requested.emit(archer_data, unit.team, unit.position + offset, unit)
+				var team_tag := "cyan" if unit.team == Unit.Team.PLAYER else "red"
+				combat_event.emit("[color=%s]%s summons an Archer[/color]" % [team_tag, unit.unit_data.unit_name])
 			continue
 
 		if dist <= unit.attack_range:
@@ -87,6 +91,8 @@ func _process_tick() -> void:
 		else:
 			# Out of range — move toward target
 			unit.move_toward_target(target.position, unit.move_speed)
+
+	tick_completed.emit()
 
 func _attack(attacker: Unit, target: Unit) -> void:
 	attacker.reset_attack_cooldown()
@@ -100,11 +106,51 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	# Deal damage (armor/evasion handled inside target)
 	var result := target.take_damage(atk_damage)
 
+	# Combat log
+	var atk_tag := "cyan" if attacker.team == Unit.Team.PLAYER else "red"
+	var a_name := attacker.unit_data.unit_name
+	var t_name := target.unit_data.unit_name
+	if result.evaded:
+		combat_event.emit("[color=%s]%s evades %s[/color]" % [atk_tag, t_name, a_name])
+	elif is_crit:
+		combat_event.emit("[color=%s]%s CRITS %s for %d dmg![/color]" % [atk_tag, a_name, t_name, result.damage])
+	elif result.hit:
+		combat_event.emit("[color=%s]%s hits %s for %d dmg[/color]" % [atk_tag, a_name, t_name, result.damage])
+
+	if target.is_dead:
+		combat_event.emit("[color=%s]%s kills %s[/color]" % [atk_tag, a_name, t_name])
+
 	# Visual feedback — attacker "punch" scale
 	var tween := attacker.create_tween()
 	tween.tween_property(attacker, "scale", Vector2(1.2, 1.2), 0.1)
 	tween.tween_property(attacker, "scale", Vector2(1.0, 1.0), 0.1)
 
+	# Attack effect (projectile or melee slash)
+	_spawn_attack_effect(attacker, target)
+
 	# Clean up dead target
 	if target.is_dead:
 		board.remove_unit(target)
+
+# Class-to-effect mapping
+const PROJECTILE_MAP: Dictionary = {
+	"Archer": "arrow",
+	"Warlock": "magic",
+	"Priest": "holy",
+	"Herbalist": "poison",
+}
+const SLASH_MAP: Dictionary = {
+	"Grunt": "slash",
+	"Tank": "slash",
+	"Assassin": "slash_assassin",
+}
+
+func _spawn_attack_effect(attacker: Unit, target: Unit) -> void:
+	var unit_class: String = attacker.unit_data.unit_class
+	var parent: Node = board.get_node("Units")
+	if PROJECTILE_MAP.has(unit_class):
+		var dist := attacker.position.distance_to(target.position)
+		var duration := clampf(dist / 600.0, 0.12, 0.4)
+		AttackEffect.spawn_projectile(parent, PROJECTILE_MAP[unit_class], attacker.position, target.position, duration)
+	elif SLASH_MAP.has(unit_class):
+		AttackEffect.spawn_slash(parent, SLASH_MAP[unit_class], target.position)

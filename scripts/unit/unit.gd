@@ -72,9 +72,21 @@ func _ready() -> void:
 	if unit_data:
 		_update_visuals()
 
-func _update_visuals() -> void:
-	# Team color
+func _draw() -> void:
+	# Team-colored ring behind sprite
+	var ring_color: Color
 	if team == Team.PLAYER:
+		ring_color = Color(0.2, 0.5, 1.0, 0.6)
+	else:
+		ring_color = Color(1.0, 0.2, 0.2, 0.6)
+	draw_arc(Vector2.ZERO, 28, 0, TAU, 32, ring_color, 3.0)
+
+func _update_visuals() -> void:
+	# Apply class-specific texture
+	if unit_data.texture:
+		sprite.texture = unit_data.texture
+		sprite.modulate = Color.WHITE
+	elif team == Team.PLAYER:
 		sprite.modulate = Color(0.2, 0.5, 1.0)
 	else:
 		sprite.modulate = Color(1.0, 0.2, 0.2)

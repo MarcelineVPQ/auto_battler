@@ -1,21 +1,22 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://casas00000007"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://casas00000007"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://c5f5grelo6x25" path="res://assets/icons/assassin.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
 unit_name = "Shade"
 unit_class = "Assassin"
 farm_cost = 3
-max_hp = 70
-damage = 15
+max_hp = 60
+damage = 12
 attacks_per_second = 0.9
 attack_range = 100.0
 move_speed = 60.0
 armor = 0
-evasion = 20.0
-crit_chance = 15.0
-skill_proc_chance = 12.0
+evasion = 15.0
+crit_chance = 12.0
+skill_proc_chance = 10.0
 max_mana = 5
 mana_cost_per_attack = 5
 mana_regen_per_second = 3.0
@@ -23,3 +24,4 @@ ability_name = "Shadowstrike"
 ability_cooldown = 5.0
 skill_name = ""
 boosted_stats = []
+texture = ExtResource("2")

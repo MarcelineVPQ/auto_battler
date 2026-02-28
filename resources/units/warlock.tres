@@ -1,16 +1,17 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cwrlk00000001"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://cwrlk00000001"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://bsnykubc5ymcw" path="res://assets/icons/warlock.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
 unit_name = "Garalt"
 unit_class = "Warlock"
-farm_cost = 1
+farm_cost = 2
 max_hp = 50
-damage = 14
+damage = 12
 attacks_per_second = 0.5
-attack_range = 250.0
+attack_range = 220.0
 move_speed = 40.0
 armor = 0
 evasion = 0.0
@@ -23,3 +24,4 @@ ability_name = "Vulnerable Curse"
 ability_cooldown = 5.76
 skill_name = "Reflect"
 boosted_stats = []
+texture = ExtResource("2")

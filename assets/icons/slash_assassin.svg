@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Assassin double slash — X pattern -->
+  <path d="M 6 6 L 42 42" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 42 6 L 6 42" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M 8 8 L 40 40" fill="none" stroke="#00FF88" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 40 8 L 8 40" fill="none" stroke="#00FF88" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <!-- Poison sparks -->
+  <circle cx="24" cy="24" r="3" fill="#00FF88" opacity="0.5"/>
+  <circle cx="10" cy="10" r="2" fill="#FFFFFF" opacity="0.4"/>
+  <circle cx="38" cy="10" r="2" fill="#FFFFFF" opacity="0.4"/>
+</svg>

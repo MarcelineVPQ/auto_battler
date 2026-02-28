@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Magic bolt — purple energy ball -->
+  <circle cx="16" cy="16" r="10" fill="#9C27B0" opacity="0.7"/>
+  <circle cx="16" cy="16" r="6" fill="#CE93D8"/>
+  <circle cx="14" cy="14" r="3" fill="#F3E5F5" opacity="0.8"/>
+  <!-- Trail sparks -->
+  <circle cx="4" cy="14" r="2" fill="#CE93D8" opacity="0.4"/>
+  <circle cx="8" cy="18" r="2.5" fill="#CE93D8" opacity="0.5"/>
+</svg>

@@ -62,7 +62,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Invincible", "cost": 15, "rarity": "Rare", "desc": "+15% evasion", "stat": "evasion", "amount": 15.0},
 	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "+10 damage", "stat": "damage", "amount": 10},
 	{"name": "Sniper", "cost": 15, "rarity": "Rare", "desc": "+100 atk range", "stat": "attack_range", "amount": 100.0},
-	{"name": "Necromancy", "cost": 8, "rarity": "Rare", "desc": "Summoner: archers inherit stats", "stat": "necromancy", "amount": 1.0},
+	{"name": "Necromancy", "cost": 12, "rarity": "Rare", "desc": "Summoner: archers inherit 15% stats (max 3)", "stat": "necromancy", "amount": 1.0},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
@@ -122,6 +122,13 @@ var _pending_upgrade_slot: int = -1
 # Currently shown info unit (for refreshing)
 var _info_unit: Unit = null
 
+# Battle UI — strength bar & combat log
+var strength_bar_container: HBoxContainer
+var strength_bar_player: ColorRect
+var strength_bar_enemy: ColorRect
+var combat_log_scroll: ScrollContainer
+var combat_log: RichTextLabel
+
 func _ready() -> void:
 	combat_system.setup(board)
 	combat_system.combat_ended.connect(_on_combat_ended)
@@ -135,10 +142,85 @@ func _ready() -> void:
 
 	_build_wave_select_ui()
 	_build_shop_bar()
+	_build_battle_ui()
 	_hide_info_panel()
 	_hide_shop()
 
+	combat_system.combat_event.connect(_on_combat_event)
+	combat_system.tick_completed.connect(_on_tick_completed)
+
 	GameManager.advance_round()
+
+# ── Battle UI (Strength Bar + Combat Log) ──────────────────
+
+func _build_battle_ui() -> void:
+	# Strength bar — tug-of-war HP bar below TopBar
+	strength_bar_container = HBoxContainer.new()
+	strength_bar_container.position = Vector2(55, 42)
+	strength_bar_container.custom_minimum_size = Vector2(860, 8)
+	strength_bar_container.add_theme_constant_override("separation", 0)
+	ui_layer.add_child(strength_bar_container)
+
+	strength_bar_player = ColorRect.new()
+	strength_bar_player.color = Color(0.2, 0.4, 1.0)
+	strength_bar_player.custom_minimum_size = Vector2(430, 8)
+	strength_bar_player.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	strength_bar_container.add_child(strength_bar_player)
+
+	strength_bar_enemy = ColorRect.new()
+	strength_bar_enemy.color = Color(1.0, 0.2, 0.2)
+	strength_bar_enemy.custom_minimum_size = Vector2(430, 8)
+	strength_bar_enemy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	strength_bar_container.add_child(strength_bar_enemy)
+
+	strength_bar_container.visible = false
+
+	# Combat log — scrolling text at bottom-right
+	combat_log_scroll = ScrollContainer.new()
+	combat_log_scroll.position = Vector2(1010, 440)
+	combat_log_scroll.custom_minimum_size = Vector2(260, 160)
+	combat_log_scroll.size = Vector2(260, 160)
+	ui_layer.add_child(combat_log_scroll)
+
+	combat_log = RichTextLabel.new()
+	combat_log.bbcode_enabled = true
+	combat_log.fit_content = true
+	combat_log.custom_minimum_size = Vector2(260, 0)
+	combat_log.scroll_active = false
+	combat_log.add_theme_font_size_override("normal_font_size", 11)
+	combat_log_scroll.add_child(combat_log)
+
+	combat_log_scroll.visible = false
+
+func _on_combat_event(text: String) -> void:
+	combat_log.append_text(text + "\n")
+	# Auto-scroll to bottom
+	await get_tree().process_frame
+	combat_log_scroll.scroll_vertical = int(combat_log_scroll.get_v_scroll_bar().max_value)
+
+func _on_tick_completed() -> void:
+	var player_hp := 0
+	var enemy_hp := 0
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		player_hp += unit.current_hp
+	for unit in board.get_units_on_team(Unit.Team.ENEMY):
+		enemy_hp += unit.current_hp
+
+	var total := player_hp + enemy_hp
+	if total <= 0:
+		return
+	var ratio: float = float(player_hp) / float(total)
+	var bar_width: float = 860.0
+	strength_bar_player.custom_minimum_size.x = bar_width * ratio
+	strength_bar_enemy.custom_minimum_size.x = bar_width * (1.0 - ratio)
+
+func _show_battle_ui() -> void:
+	strength_bar_container.visible = true
+	combat_log_scroll.visible = true
+
+func _hide_battle_ui() -> void:
+	strength_bar_container.visible = false
+	combat_log_scroll.visible = false
 
 # ── Wave Select UI ──────────────────────────────────────────
 
@@ -343,7 +425,10 @@ func _update_shop_display() -> void:
 			btn.disabled = true
 		elif slot.type == "hero":
 			var data: UnitData = slot.data
-			btn.text = "%dg\n\n%s\n%s" % [data.farm_cost, data.unit_class, data.unit_name]
+			var label := "%dg\n\n%s\n%s" % [data.farm_cost, data.unit_class, data.unit_name]
+			if _find_player_unit_by_class(data.unit_class):
+				label += "\n\nAuto: Use as EXP\n(Shift: new copy)"
+			btn.text = label
 			btn.disabled = false
 		else:
 			var upgrade: Dictionary = slot.data
@@ -372,8 +457,22 @@ func _on_shop_card_pressed(idx: int) -> void:
 func _buy_hero(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
 	var data: UnitData = slot.data
-	var player_count := board.get_units_on_team(Unit.Team.PLAYER).size()
 
+	# Auto-merge: if a same-class unit exists and Shift is NOT held, feed as XP
+	var merge_target := _find_player_unit_by_class(data.unit_class)
+	if merge_target and not Input.is_key_pressed(KEY_SHIFT):
+		if not GameManager.spend_gold(slot.cost):
+			return
+		_grant_xp(merge_target, 1)
+		slot.sold = true
+		board.select_unit(merge_target)
+		_show_info_panel(merge_target)
+		_update_shop_display()
+		_update_ui()
+		return
+
+	# Spawn new unit
+	var player_count := board.get_units_on_team(Unit.Team.PLAYER).size()
 	if player_count >= GameManager.squad_cap:
 		return
 	if not GameManager.spend_gold(slot.cost):
@@ -387,6 +486,12 @@ func _buy_hero(idx: int) -> void:
 	slot.sold = true
 	_update_shop_display()
 	_update_ui()
+
+func _find_player_unit_by_class(unit_class: String) -> Unit:
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		if unit.unit_data.unit_class == unit_class:
+			return unit
+	return null
 
 func _buy_upgrade(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
@@ -542,7 +647,18 @@ func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) ->
 # ── Hero Stacking (Merge) ──────────────────────────────────
 
 func _merge_units(target: Unit, consumed: Unit) -> void:
-	var xp_gained := 1 + consumed.xp
+	_grant_xp(target, 1 + consumed.xp)
+
+	# Remove consumed unit
+	board.remove_unit(consumed)
+	consumed.queue_free()
+
+	# Select merged unit and show updated stats
+	board.select_unit(target)
+	_show_info_panel(target)
+	_update_ui()
+
+func _grant_xp(target: Unit, xp_gained: int) -> void:
 	target.xp += xp_gained
 
 	# Small boost per XP gained (~10% stats per XP point)
@@ -582,15 +698,6 @@ func _merge_units(target: Unit, consumed: Unit) -> void:
 	target.health_bar.value = target.current_hp
 	target._update_armor_bar()
 	target.update_scale()
-
-	# Remove consumed unit
-	board.remove_unit(consumed)
-	consumed.queue_free()
-
-	# Select merged unit and show updated stats
-	board.select_unit(target)
-	_show_info_panel(target)
-	_update_ui()
 
 # ── Squad Persistence ───────────────────────────────────────
 
@@ -664,23 +771,31 @@ func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2) -> Unit:
 
 func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit) -> void:
 	var archer := _spawn_unit(data, team, pos)
+	# Summoned archers are weaker than recruited ones (60% base stats)
+	archer.damage = int(ceil(archer.damage * 0.6))
+	archer.max_hp = int(ceil(archer.max_hp * 0.6))
+	archer.current_hp = archer.max_hp
+	archer.attacks_per_second *= 0.8
+	archer.health_bar.max_value = archer.max_hp
+	archer.health_bar.value = archer.current_hp
 	# Scale summoned archer stats based on the summoner's merge count and stat purchases
 	var total_purchases: int = 0
 	for key in summoner.stat_purchases:
 		total_purchases += summoner.stat_purchases[key]
 	var power: float = (summoner.level - 1) * 5.0 + summoner.xp + total_purchases
 	if power > 0:
-		var scale_factor := 1.0 + power * 0.15
+		var scale_factor := 1.0 + power * 0.08
 		archer.damage = int(ceil(archer.damage * scale_factor))
 		archer.max_hp = int(ceil(archer.max_hp * scale_factor))
 		archer.current_hp = archer.max_hp
-		archer.attacks_per_second *= 1.0 + power * 0.05
+		archer.attacks_per_second *= 1.0 + power * 0.03
 		archer.health_bar.max_value = archer.max_hp
 		archer.health_bar.value = archer.current_hp
 		archer.update_scale()
-	# Necromancy: each stack gives summoned archers 25% of the summoner's bonus stats
+	# Necromancy: each stack gives summoned archers 15% of the summoner's bonus stats (max 3 stacks)
 	if summoner.necromancy_stacks > 0:
-		var pct := summoner.necromancy_stacks * 0.25
+		var effective_stacks := mini(summoner.necromancy_stacks, 3)
+		var pct := effective_stacks * 0.15
 		var bonus_hp := summoner.max_hp - summoner.unit_data.max_hp
 		var bonus_atk_spd := summoner.attacks_per_second - summoner.unit_data.attacks_per_second
 		var bonus_armor := summoner.armor - summoner.unit_data.armor
@@ -791,6 +906,9 @@ func _on_ready_pressed() -> void:
 	_hide_shop()
 	_hide_info_panel()
 	result_label.text = ""
+	combat_log.clear()
+	_show_battle_ui()
+	_on_tick_completed()
 	GameManager.start_battle()
 	combat_system.start_combat()
 	_update_ui()
@@ -824,6 +942,9 @@ func _on_phase_changed(new_phase: GameManager.Phase) -> void:
 		_cancel_upgrade_targeting()
 	if new_phase == GameManager.Phase.WAVE_SELECT:
 		_show_wave_select()
+		_hide_battle_ui()
+	elif new_phase == GameManager.Phase.PREP:
+		_hide_battle_ui()
 	_update_ui()
 
 func _on_game_over() -> void:

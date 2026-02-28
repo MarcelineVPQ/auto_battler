@@ -1,15 +1,16 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://cgrnt00000005"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://cgrnt00000005"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://w1v2jrqyqflp" path="res://assets/icons/grunt.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
 unit_name = "Korg"
 unit_class = "Grunt"
 farm_cost = 1
-max_hp = 120
+max_hp = 130
 damage = 7
-attacks_per_second = 1.2
+attacks_per_second = 1.1
 attack_range = 80.0
 move_speed = 55.0
 armor = 3
@@ -23,3 +24,4 @@ ability_name = "Frenzy"
 ability_cooldown = 6.0
 skill_name = ""
 boosted_stats = []
+texture = ExtResource("2")

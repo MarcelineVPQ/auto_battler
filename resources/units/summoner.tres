@@ -1,15 +1,16 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://csumm0000001"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://csumm0000001"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://df5k5f7ot2wqn" path="res://assets/icons/summoner.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
 unit_name = "Nyx"
 unit_class = "Summoner"
 farm_cost = 4
-max_hp = 40
+max_hp = 50
 damage = 0
-attacks_per_second = 0.3
+attacks_per_second = 0.2
 attack_range = 0.0
 move_speed = 25.0
 armor = 0
@@ -23,3 +24,4 @@ ability_name = "Summon Archer"
 ability_cooldown = 5.0
 skill_name = ""
 boosted_stats = []
+texture = ExtResource("2")

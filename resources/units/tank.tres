@@ -1,18 +1,19 @@
-[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3 uid="uid://ctank00000003"]
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://ctank00000003"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://cy1jwcq0hkgds" path="res://assets/icons/tank.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
 unit_name = "Dorian"
 unit_class = "Tank"
 farm_cost = 2
-max_hp = 180
-damage = 10
-attacks_per_second = 0.7
+max_hp = 200
+damage = 8
+attacks_per_second = 0.6
 attack_range = 80.0
 move_speed = 30.0
-armor = 6
+armor = 8
 evasion = 0.0
 crit_chance = 3.0
 skill_proc_chance = 3.0
@@ -23,3 +24,4 @@ ability_name = "Shield Bash"
 ability_cooldown = 7.36
 skill_name = ""
 boosted_stats = []
+texture = ExtResource("2")

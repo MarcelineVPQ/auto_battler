@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Archer: Bow and arrow - ranged DPS -->
+  <circle cx="64" cy="64" r="60" fill="#2E5E1E" stroke="#4CAF50" stroke-width="4"/>
+  <!-- Bow arc -->
+  <path d="M 50 20 Q 25 64 50 108" fill="none" stroke="#CD853F" stroke-width="7" stroke-linecap="round"/>
+  <!-- Bowstring -->
+  <line x1="50" y1="20" x2="50" y2="108" stroke="#F5F5DC" stroke-width="2"/>
+  <!-- Arrow shaft -->
+  <line x1="50" y1="64" x2="105" y2="64" stroke="#CD853F" stroke-width="4" stroke-linecap="round"/>
+  <!-- Arrowhead -->
+  <polygon points="105,54 105,74 118,64" fill="#C0C0C0"/>
+  <!-- Arrow fletching -->
+  <polygon points="52,58 42,52 52,64" fill="#E53935" opacity="0.9"/>
+  <polygon points="52,70 42,76 52,64" fill="#E53935" opacity="0.9"/>
+</svg>

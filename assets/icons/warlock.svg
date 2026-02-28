@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Warlock: Flame skull - dark magic ranged -->
+  <circle cx="64" cy="64" r="60" fill="#2D0A3E" stroke="#9C27B0" stroke-width="4"/>
+  <!-- Skull -->
+  <ellipse cx="64" cy="62" rx="28" ry="30" fill="#E8E8D0"/>
+  <!-- Eye sockets -->
+  <ellipse cx="52" cy="55" rx="8" ry="10" fill="#2D0A3E"/>
+  <ellipse cx="76" cy="55" rx="8" ry="10" fill="#2D0A3E"/>
+  <!-- Eye glow -->
+  <ellipse cx="52" cy="56" rx="4" ry="5" fill="#FF4081" opacity="0.8"/>
+  <ellipse cx="76" cy="56" rx="4" ry="5" fill="#FF4081" opacity="0.8"/>
+  <!-- Nose -->
+  <polygon points="61,65 67,65 64,72" fill="#2D0A3E"/>
+  <!-- Teeth -->
+  <rect x="50" y="78" width="6" height="8" rx="1" fill="#E8E8D0"/>
+  <rect x="58" y="78" width="6" height="10" rx="1" fill="#E8E8D0"/>
+  <rect x="66" y="78" width="6" height="10" rx="1" fill="#E8E8D0"/>
+  <rect x="74" y="78" width="6" height="8" rx="1" fill="#E8E8D0"/>
+  <!-- Flames on top -->
+  <path d="M 45 38 Q 48 20 55 32 Q 52 10 64 28 Q 62 8 72 26 Q 76 10 76 32 Q 82 18 82 38"
+        fill="#FF6F00" opacity="0.85" stroke="#FFAB00" stroke-width="1"/>
+</svg>
