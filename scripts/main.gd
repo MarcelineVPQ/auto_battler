@@ -359,7 +359,7 @@ func _generate_wave_options() -> Array[Dictionary]:
 func _generate_single_wave() -> Dictionary:
 	var round_num := GameManager.current_round
 	# Farm budget: base + round scaling + variance
-	var enemy_farm_budget := round_num + 2 + randi_range(0, maxi(round_num / 3, 1))
+	var enemy_farm_budget := round_num + 1 + randi_range(0, maxi(round_num / 3, 1))
 
 	# Enemy level scales with rounds (faster progression, higher cap)
 	var base_level := clampi(ceili(round_num / 2.0), 1, 10)

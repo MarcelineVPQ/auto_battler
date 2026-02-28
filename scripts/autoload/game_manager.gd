@@ -11,7 +11,7 @@ signal game_over
 
 const MAX_ROUNDS: int = 20
 const STARTING_GOLD: int = 10
-const STARTING_LIVES: int = 4
+const STARTING_LIVES: int = 5
 const STARTING_FARMS: int = 5
 const BASE_FARM_COST: int = 1
 const BASE_INCOME: int = 12
