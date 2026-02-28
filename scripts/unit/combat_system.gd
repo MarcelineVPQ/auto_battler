@@ -22,6 +22,10 @@ func start_combat() -> void:
 	for unit in board.all_units:
 		unit.attack_timer = 0.0
 		unit.ability_timer = 0.0
+		if unit.primed:
+			# Primed units start with full mana — ability fires immediately
+			unit.current_mana = unit.max_mana
+			unit._update_mana_bar()
 
 func stop_combat() -> void:
 	is_fighting = false
@@ -66,6 +70,13 @@ func _process_tick() -> void:
 			unit.current_mana + int(unit.mana_regen_per_second * TICK_INTERVAL),
 			unit.max_mana
 		)
+		unit._update_mana_bar()
+
+		# Ability trigger: when mana is full, fire ability and reset
+		if unit.current_mana >= unit.max_mana:
+			_trigger_ability(unit)
+			unit.current_mana = 0
+			unit._update_mana_bar()
 
 		# Find target
 		var target := board.find_nearest_enemy(unit)
@@ -96,6 +107,13 @@ func _process_tick() -> void:
 
 func _attack(attacker: Unit, target: Unit) -> void:
 	attacker.reset_attack_cooldown()
+
+	# Spend mana on attack
+	attacker.current_mana = mini(
+		attacker.current_mana + attacker.mana_cost_per_attack,
+		attacker.max_mana
+	)
+	attacker._update_mana_bar()
 
 	# Calculate damage with crit
 	var atk_damage := attacker.damage
@@ -144,6 +162,75 @@ const SLASH_MAP: Dictionary = {
 	"Tank": "slash",
 	"Assassin": "slash_assassin",
 }
+
+func _trigger_ability(unit: Unit) -> void:
+	var unit_class: String = unit.unit_data.unit_class
+	var team_tag := "cyan" if unit.team == Unit.Team.PLAYER else "red"
+	var u_name := unit.unit_data.unit_name
+
+	match unit_class:
+		"Priest":
+			# Heal all allied units
+			var allies := board.get_units_on_team(unit.team)
+			var heal_amount := int(unit.damage * 2.5)
+			for ally in allies:
+				if ally.is_dead:
+					continue
+				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
+				ally.health_bar.value = ally.current_hp
+			combat_event.emit("[color=%s]%s casts %s — heals all allies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, heal_amount])
+		"Warlock":
+			# Curse: next attack on target deals double damage (simulated as temp damage buff)
+			unit.damage = int(ceil(unit.damage * 1.5))
+			combat_event.emit("[color=%s]%s casts %s — damage surges![/color]" % [team_tag, u_name, unit.unit_data.ability_name])
+		"Herbalist":
+			# Poison all enemies (deal damage over time simulated as instant AoE)
+			var enemies := board.get_units_on_team(
+				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
+			)
+			var poison_dmg := int(unit.damage * 0.5)
+			for enemy in enemies:
+				if enemy.is_dead:
+					continue
+				enemy.current_hp = maxi(enemy.current_hp - poison_dmg, 0)
+				enemy.health_bar.value = enemy.current_hp
+				if enemy.current_hp <= 0:
+					enemy.die()
+					board.remove_unit(enemy)
+			combat_event.emit("[color=%s]%s casts %s — poisons all enemies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, poison_dmg])
+		"Grunt":
+			# Frenzy: temporary attack speed boost
+			unit.attacks_per_second *= 1.3
+			combat_event.emit("[color=%s]%s enters Frenzy — attack speed up![/color]" % [team_tag, u_name])
+		"Tank":
+			# Shield Bash: gain armor
+			unit.armor += 2
+			unit._update_armor_bar()
+			combat_event.emit("[color=%s]%s uses Shield Bash — +2 armor![/color]" % [team_tag, u_name])
+		"Assassin":
+			# Shadowstrike: guaranteed crit on next hit
+			unit.crit_chance += 50.0
+			combat_event.emit("[color=%s]%s prepares Shadowstrike — next hit is lethal![/color]" % [team_tag, u_name])
+		"Archer":
+			# Volley: hit all enemies for reduced damage
+			var enemies := board.get_units_on_team(
+				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
+			)
+			var volley_dmg := int(unit.damage * 0.4)
+			for enemy in enemies:
+				if enemy.is_dead:
+					continue
+				enemy.current_hp = maxi(enemy.current_hp - volley_dmg, 0)
+				enemy.health_bar.value = enemy.current_hp
+				if enemy.current_hp <= 0:
+					enemy.die()
+					board.remove_unit(enemy)
+			combat_event.emit("[color=%s]%s fires Volley — hits all enemies for %d![/color]" % [team_tag, u_name, volley_dmg])
+
+	# Visual pulse for ability cast
+	var tween := unit.create_tween()
+	tween.tween_property(unit, "modulate", Color(1.5, 1.5, 1.5, 1.0), 0.15)
+	tween.tween_property(unit, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.15)
 
 func _spawn_attack_effect(attacker: Unit, target: Unit) -> void:
 	var unit_class: String = attacker.unit_data.unit_class

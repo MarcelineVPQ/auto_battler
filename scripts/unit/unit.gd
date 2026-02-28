@@ -21,6 +21,9 @@ var applied_upgrades: Array[Dictionary] = []
 # Summoner-specific: necromancy stacks cause summoned archers to inherit stats
 var necromancy_stacks: int = 0
 
+# Primed: ability fires immediately at combat start
+var primed: bool = false
+
 # Runtime stats (copied from UnitData, can be upgraded)
 var max_hp: int
 var current_hp: int
@@ -45,6 +48,7 @@ var ability_timer: float = 0.0
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var health_bar: ProgressBar = $HealthBar
 @onready var armor_bar: ProgressBar = $ArmorBar
+@onready var mana_bar: ProgressBar = $ManaBar
 @onready var name_label: Label = $NameLabel
 
 func setup(data: UnitData, t: Team, pos: Vector2) -> void:
@@ -63,7 +67,7 @@ func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	crit_chance = data.crit_chance
 	skill_proc_chance = data.skill_proc_chance
 	max_mana = data.max_mana
-	current_mana = data.max_mana
+	current_mana = 0
 	mana_cost_per_attack = data.mana_cost_per_attack
 	mana_regen_per_second = data.mana_regen_per_second
 	ability_cooldown = data.ability_cooldown
@@ -79,7 +83,7 @@ func _draw() -> void:
 		ring_color = Color(0.2, 0.5, 1.0, 0.6)
 	else:
 		ring_color = Color(1.0, 0.2, 0.2, 0.6)
-	draw_arc(Vector2.ZERO, 28, 0, TAU, 32, ring_color, 3.0)
+	draw_arc(Vector2.ZERO, 18, 0, TAU, 32, ring_color, 2.0)
 
 func _update_visuals() -> void:
 	# Apply class-specific texture
@@ -94,6 +98,9 @@ func _update_visuals() -> void:
 	# Health bar
 	health_bar.max_value = max_hp
 	health_bar.value = current_hp
+
+	# Mana bar
+	_update_mana_bar()
 
 	# Armor bar — visible only when armor > 0
 	_update_armor_bar()
@@ -120,13 +127,12 @@ func record_stat_purchase(stat_key: String) -> void:
 	update_scale()
 
 func update_scale() -> void:
-	# Base scale from level: 0.4 + 0.1 per level above 1
-	var base_s: float = 0.4 + (level - 1) * 0.1
-	# Small increment from stat purchases
+	# Base scale 0.22, grows slowly with level and purchases, capped at 0.45
+	var base_s: float = 0.22 + (level - 1) * 0.03
 	var total_purchases: int = 0
 	for key in stat_purchases:
 		total_purchases += stat_purchases[key]
-	var s: float = base_s + total_purchases * 0.005
+	var s: float = clampf(base_s + total_purchases * 0.002, 0.22, 0.45)
 	sprite.scale = Vector2(s, s)
 
 func _update_armor_bar() -> void:
@@ -136,6 +142,10 @@ func _update_armor_bar() -> void:
 		armor_bar.value = armor
 	else:
 		armor_bar.visible = false
+
+func _update_mana_bar() -> void:
+	mana_bar.max_value = max_mana
+	mana_bar.value = current_mana
 
 func take_damage(amount: int) -> Dictionary:
 	var result := {"hit": true, "damage": 0, "crit": false, "evaded": false}

@@ -48,7 +48,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Adrenaline", "cost": 4, "rarity": "Normal", "desc": "+8 move speed", "stat": "move_speed", "amount": 8.0},
 	{"name": "Giant Killer", "cost": 6, "rarity": "Normal", "desc": "+5 damage", "stat": "damage", "amount": 5},
 	{"name": "Arcane Surge", "cost": 4, "rarity": "Normal", "desc": "+3 max mana", "stat": "max_mana", "amount": 3},
-	{"name": "Primed", "cost": 5, "rarity": "Normal", "desc": "+4% skill proc", "stat": "skill_proc_chance", "amount": 4.0},
+	{"name": "Primed", "cost": 5, "rarity": "Normal", "desc": "Ability ready at battle start", "stat": "primed", "amount": 1.0},
 	{"name": "Fortify", "cost": 6, "rarity": "Normal", "desc": "+3 armor", "stat": "armor", "amount": 3},
 	# ── Expensive (8-12g) ──
 	{"name": "Sepsis", "cost": 8, "rarity": "Normal", "desc": "+5% skill proc", "stat": "skill_proc_chance", "amount": 5.0},
@@ -615,7 +615,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.health_bar.value = unit.current_hp
 		"max_mana":
 			unit.max_mana += int(amount)
-			unit.current_mana = unit.max_mana
+			unit._update_mana_bar()
 		"armor":
 			unit.armor += int(amount)
 			unit._update_armor_bar()
@@ -631,6 +631,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.skill_proc_chance += amount
 		"necromancy":
 			unit.necromancy_stacks += int(amount)
+		"primed":
+			unit.primed = true
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
@@ -691,11 +693,12 @@ func _grant_xp(target: Unit, xp_gained: int) -> void:
 		target.max_mana = int(ceil(target.max_mana * 1.20))
 
 	target.current_hp = target.max_hp
-	target.current_mana = target.max_mana
+	target.current_mana = 0
 
 	# Update visuals
 	target.health_bar.max_value = target.max_hp
 	target.health_bar.value = target.current_hp
+	target._update_mana_bar()
 	target._update_armor_bar()
 	target.update_scale()
 
@@ -713,6 +716,7 @@ func _save_squad() -> void:
 			"xp": unit.xp,
 			"level": unit.level,
 			"necromancy_stacks": unit.necromancy_stacks,
+			"primed": unit.primed,
 			"stat_purchases": unit.stat_purchases.duplicate(),
 			"applied_upgrades": saved_upgrades,
 			"stats": {
@@ -737,6 +741,7 @@ func _restore_squad() -> void:
 		unit.xp = entry.get("xp", 0)
 		unit.level = entry.get("level", 1)
 		unit.necromancy_stacks = entry.get("necromancy_stacks", 0)
+		unit.primed = entry.get("primed", false)
 		unit.stat_purchases = entry.get("stat_purchases", {}).duplicate()
 		var saved_upgrades: Array = entry.get("applied_upgrades", [])
 		for upg in saved_upgrades:
@@ -754,7 +759,7 @@ func _restore_squad() -> void:
 			unit.crit_chance = s.crit_chance
 			unit.skill_proc_chance = s.skill_proc_chance
 			unit.max_mana = s.max_mana
-			unit.current_mana = s.max_mana
+			unit.current_mana = 0
 			unit.mana_cost_per_attack = s.mana_cost_per_attack
 			unit.mana_regen_per_second = s.mana_regen_per_second
 			unit.health_bar.max_value = s.max_hp
