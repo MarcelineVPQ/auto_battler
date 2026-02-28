@@ -227,7 +227,7 @@ func _trigger_ability(unit: Unit) -> void:
 			# Shield Bash: deal (3 * armor + damage) to nearest enemy
 			var bash_target := board.find_nearest_enemy(unit)
 			if bash_target != null and not bash_target.is_dead:
-				var bash_dmg := unit.armor * 3 + unit.damage
+				var bash_dmg := unit.armor + unit.damage
 				var bash_result := bash_target.take_damage(bash_dmg)
 				var t_name := bash_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s uses Shield Bash on %s for %d![/color]" % [team_tag, u_name, t_name, bash_result.damage])

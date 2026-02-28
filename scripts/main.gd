@@ -34,7 +34,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Exploit Weakness", "cost": 2, "rarity": "Normal", "desc": "+3 damage", "stat": "damage", "amount": 3},
 	{"name": "Toughness", "cost": 2, "rarity": "Normal", "desc": "+20 max HP", "stat": "max_hp", "amount": 20},
 	{"name": "Swift Strikes", "cost": 2, "rarity": "Normal", "desc": "+0.1 atk/s", "stat": "attacks_per_second", "amount": 0.1},
-	{"name": "Iron Skin", "cost": 2, "rarity": "Normal", "desc": "+1 armor", "stat": "armor", "amount": 1},
+	{"name": "Iron Skin", "cost": 2, "rarity": "Normal", "desc": "+5 armor", "stat": "armor", "amount": 5},
 	{"name": "Keen Edge", "cost": 2, "rarity": "Normal", "desc": "+2% crit", "stat": "crit_chance", "amount": 2.0},
 	{"name": "Nimble", "cost": 2, "rarity": "Normal", "desc": "+3% evasion", "stat": "evasion", "amount": 3.0},
 	{"name": "Quickstep", "cost": 3, "rarity": "Normal", "desc": "+5 move speed", "stat": "move_speed", "amount": 5.0},
@@ -43,17 +43,18 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Poison Tip", "cost": 3, "rarity": "Normal", "desc": "+1 damage", "stat": "damage", "amount": 1},
 	# ── Mid (4-6g) ──
 	{"name": "Deadly Focus", "cost": 5, "rarity": "Normal", "desc": "+5% crit", "stat": "crit_chance", "amount": 5.0},
-	{"name": "Revenge", "cost": 5, "rarity": "Normal", "desc": "+2 armor", "stat": "armor", "amount": 2},
+	{"name": "Revenge", "cost": 5, "rarity": "Normal", "desc": "+10 armor", "stat": "armor", "amount": 10},
 	{"name": "Bloodlust", "cost": 5, "rarity": "Normal", "desc": "+0.2 atk/s", "stat": "attacks_per_second", "amount": 0.2},
 	{"name": "Eagle Eye", "cost": 5, "rarity": "Normal", "desc": "+50 atk range", "stat": "attack_range", "amount": 50.0},
 	{"name": "Adrenaline", "cost": 4, "rarity": "Normal", "desc": "+8 move speed", "stat": "move_speed", "amount": 8.0},
 	{"name": "Giant Killer", "cost": 6, "rarity": "Normal", "desc": "+5 damage", "stat": "damage", "amount": 5},
 	{"name": "Arcane Surge", "cost": 4, "rarity": "Normal", "desc": "+3 max mana", "stat": "max_mana", "amount": 3},
 	{"name": "Primed", "cost": 5, "rarity": "Normal", "desc": "Ability ready at battle start", "stat": "primed", "amount": 1.0},
-	{"name": "Fortify", "cost": 6, "rarity": "Normal", "desc": "+3 armor", "stat": "armor", "amount": 3},
+	{"name": "Fortify", "cost": 6, "rarity": "Normal", "desc": "+15 armor", "stat": "armor", "amount": 15},
+	{"name": "Living Shield", "cost": 6, "rarity": "Normal", "desc": "+15 armor", "stat": "armor", "amount": 15},
 	# ── Expensive (8-12g) ──
 	{"name": "Sepsis", "cost": 8, "rarity": "Normal", "desc": "+5% skill proc", "stat": "skill_proc_chance", "amount": 5.0},
-	{"name": "Thorns", "cost": 8, "rarity": "Normal", "desc": "+4 armor", "stat": "armor", "amount": 4},
+	{"name": "Thorns", "cost": 8, "rarity": "Normal", "desc": "+20 armor", "stat": "armor", "amount": 20},
 	{"name": "Vampirism", "cost": 8, "rarity": "Normal", "desc": "+8% evasion", "stat": "evasion", "amount": 8.0},
 	{"name": "Berserk", "cost": 10, "rarity": "Normal", "desc": "+0.3 atk/s", "stat": "attacks_per_second", "amount": 0.3},
 	{"name": "Last Stand", "cost": 10, "rarity": "Normal", "desc": "+40 max HP", "stat": "max_hp", "amount": 40},
@@ -68,7 +69,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Blood Rage", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +0.2 atk/s", "stat": "blood_rage", "amount": 1.0, "class_req": "Grunt"},
 	{"name": "Deadeye", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +80 range", "stat": "deadeye", "amount": 1.0, "class_req": "Archer"},
 	{"name": "Phantom Step", "cost": 12, "rarity": "Rare", "desc": "+10% evade, +10% crit", "stat": "phantom_step", "amount": 1.0, "class_req": "Assassin"},
-	{"name": "Fortress", "cost": 12, "rarity": "Rare", "desc": "+5 armor, +40 HP", "stat": "fortress", "amount": 1.0, "class_req": "Tank"},
+	{"name": "Fortress", "cost": 12, "rarity": "Rare", "desc": "+25 armor, +40 HP", "stat": "fortress", "amount": 1.0, "class_req": "Tank"},
 	{"name": "Soul Rend", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +3 max mana", "stat": "soul_rend", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Divine Covenant", "cost": 12, "rarity": "Rare", "desc": "+30 HP, +3 max mana", "stat": "divine_covenant", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Toxic Mastery", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +5% skill proc", "stat": "toxic_mastery", "amount": 1.0, "class_req": "Herbalist"},
@@ -76,10 +77,10 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Rampage", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +0.3 atk/s, +20 HP", "stat": "rampage", "amount": 1.0, "class_req": "Grunt"},
 	{"name": "Hawkeye", "cost": 18, "rarity": "Epic", "desc": "+12 dmg, +120 range, +8% crit", "stat": "hawkeye", "amount": 1.0, "class_req": "Archer"},
 	{"name": "Death's Embrace", "cost": 18, "rarity": "Epic", "desc": "+15% evade, +15% crit, +5 dmg", "stat": "deaths_embrace", "amount": 1.0, "class_req": "Assassin"},
-	{"name": "Bastion", "cost": 18, "rarity": "Epic", "desc": "+8 armor, +60 HP, +2 dmg", "stat": "bastion", "amount": 1.0, "class_req": "Tank"},
+	{"name": "Bastion", "cost": 18, "rarity": "Epic", "desc": "+40 armor, +60 HP, +2 dmg", "stat": "bastion", "amount": 1.0, "class_req": "Tank"},
 	{"name": "Dark Pact", "cost": 18, "rarity": "Epic", "desc": "+15 dmg, +5 max mana", "stat": "dark_pact", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Ascension", "cost": 18, "rarity": "Epic", "desc": "+50 HP, +5 max mana, +5 dmg", "stat": "ascension", "amount": 1.0, "class_req": "Priest"},
-	{"name": "Plague Lord", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +8% skill proc, +3 armor", "stat": "plague_lord", "amount": 1.0, "class_req": "Herbalist"},
+	{"name": "Plague Lord", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +8% skill proc, +15 armor", "stat": "plague_lord", "amount": 1.0, "class_req": "Herbalist"},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
@@ -799,6 +800,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit._update_mana_bar()
 		"armor":
 			unit.armor += int(amount)
+			unit.max_armor += int(amount)
 			unit._update_armor_bar()
 		"evasion":
 			unit.evasion += amount
@@ -825,7 +827,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.evasion += 10
 			unit.crit_chance += 10
 		"fortress":
-			unit.armor += 5
+			unit.armor += 25
+			unit.max_armor += 25
 			unit._update_armor_bar()
 			unit.max_hp += 40
 			unit.current_hp += 40
@@ -862,7 +865,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.crit_chance += 15
 			unit.damage += 5
 		"bastion":
-			unit.armor += 8
+			unit.armor += 40
+			unit.max_armor += 40
 			unit._update_armor_bar()
 			unit.max_hp += 60
 			unit.current_hp += 60
@@ -884,7 +888,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"plague_lord":
 			unit.damage += 10
 			unit.skill_proc_chance += 8
-			unit.armor += 3
+			unit.armor += 15
+			unit.max_armor += 15
 			unit._update_armor_bar()
 	board.queue_redraw()
 
@@ -923,7 +928,9 @@ func _grant_xp(target: Unit, xp_gained: int) -> void:
 		target.attacks_per_second += 0.02
 		target.attack_range += 3.0
 		target.move_speed += 1.5
-		target.armor += 1 if target.armor > 0 else 0
+		if target.max_armor > 0:
+			target.armor += 1
+			target.max_armor += 1
 		target.evasion += 0.5
 		target.crit_chance += 0.5
 		target.skill_proc_chance += 0.3
@@ -978,6 +985,7 @@ func _save_squad() -> void:
 				"attack_range": unit.attack_range,
 				"move_speed": unit.move_speed,
 				"armor": unit.armor,
+				"max_armor": unit.max_armor,
 				"evasion": unit.evasion,
 				"crit_chance": unit.crit_chance,
 				"skill_proc_chance": unit.skill_proc_chance,
@@ -1006,7 +1014,8 @@ func _restore_squad() -> void:
 			unit.attacks_per_second = s.attacks_per_second
 			unit.attack_range = s.attack_range
 			unit.move_speed = s.move_speed
-			unit.armor = s.armor
+			unit.max_armor = s.get("max_armor", s.armor)
+			unit.armor = int(unit.max_armor * 0.75) if unit.max_armor > 0 else 0
 			unit.evasion = s.evasion
 			unit.crit_chance = s.crit_chance
 			unit.skill_proc_chance = s.skill_proc_chance
@@ -1016,6 +1025,7 @@ func _restore_squad() -> void:
 			unit.mana_regen_per_second = s.mana_regen_per_second
 			unit.health_bar.max_value = s.max_hp
 			unit.health_bar.value = s.max_hp
+			unit._update_armor_bar()
 			unit.update_scale()
 
 # ── Unit Spawning ───────────────────────────────────────────
@@ -1311,7 +1321,7 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_display("Ability CD", "%.1fs" % unit.ability_cooldown)
 	_add_stat_row(unit, "max_hp", "Health", "%d/%d" % [unit.current_hp, unit.max_hp], can_buy, 10.0)
 	_add_stat_row(unit, "max_mana", "Mana", "%d/%d" % [unit.current_mana, unit.max_mana], can_buy, 2.0)
-	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 1.0)
+	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 3.0)
 	_add_stat_row(unit, "evasion", "Evasion", "%.0f%%" % unit.evasion, can_buy, 2.0)
 	_add_stat_row(unit, "attack_range", "Atk Range", "%.0f" % unit.attack_range, can_buy, 20.0)
 	_add_stat_row(unit, "move_speed", "Move Speed", "%.0f" % unit.move_speed, can_buy, 5.0)

@@ -32,6 +32,7 @@ var attacks_per_second: float
 var attack_range: float
 var move_speed: float
 var armor: int
+var max_armor: int
 var evasion: float
 var crit_chance: float
 var crit_vulnerability: float = 0.0
@@ -64,6 +65,7 @@ func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	attack_range = data.attack_range
 	move_speed = data.move_speed
 	armor = data.armor
+	max_armor = data.armor
 	evasion = data.evasion
 	crit_chance = data.crit_chance
 	skill_proc_chance = data.skill_proc_chance
@@ -137,12 +139,16 @@ func update_scale() -> void:
 	sprite.scale = Vector2(s, s)
 
 func _update_armor_bar() -> void:
-	if armor > 0:
+	if max_armor > 0:
 		armor_bar.visible = true
-		armor_bar.max_value = armor
+		armor_bar.max_value = max_armor
 		armor_bar.value = armor
 	else:
 		armor_bar.visible = false
+
+func restore_armor() -> void:
+	if max_armor > 0:
+		armor = int(max_armor * 0.75)
 
 func _update_mana_bar() -> void:
 	mana_bar.max_value = max_mana
