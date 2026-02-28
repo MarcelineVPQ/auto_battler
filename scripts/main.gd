@@ -310,11 +310,11 @@ func _generate_wave_options() -> Array[Dictionary]:
 
 func _generate_single_wave() -> Dictionary:
 	var round_num := GameManager.current_round
-	# Farm budget starts at 1 and scales up: ~1 unit round 1, ~2 round 2, etc.
-	var enemy_farm_budget := round_num + randi_range(0, maxi(round_num / 3, 1))
+	# Farm budget: base + round scaling + variance
+	var enemy_farm_budget := round_num + 2 + randi_range(0, maxi(round_num / 3, 1))
 
-	# Enemy level scales with rounds
-	var base_level := clampi(ceili(round_num / 3.0), 1, 7)
+	# Enemy level scales with rounds (faster progression, higher cap)
+	var base_level := clampi(ceili(round_num / 2.0), 1, 10)
 
 	# Pick a strategy and build composition from its weights
 	var strat: Dictionary = wave_strategies.pick_random()
@@ -392,12 +392,12 @@ func _on_wave_selected(idx: int) -> void:
 		# Apply level scaling: each level above 1 boosts stats
 		var lvl: int = entry.get("level", 1)
 		if lvl > 1:
-			var scale_factor := 1.0 + (lvl - 1) * 0.25
+			var scale_factor := 1.0 + (lvl - 1) * 0.45
 			unit.damage = int(ceil(unit.damage * scale_factor))
 			unit.max_hp = int(ceil(unit.max_hp * scale_factor))
 			unit.current_hp = unit.max_hp
 			unit.armor = int(ceil(unit.armor * scale_factor)) if unit.armor > 0 else 0
-			unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.1
+			unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.18
 			unit.health_bar.max_value = unit.max_hp
 			unit.health_bar.value = unit.current_hp
 
@@ -851,34 +851,33 @@ func _merge_units(target: Unit, consumed: Unit) -> void:
 func _grant_xp(target: Unit, xp_gained: int) -> void:
 	target.xp += xp_gained
 
-	# Small boost per XP gained (~10% stats per XP point)
+	# Flat boost per XP gained (additive to prevent exponential compounding)
 	for i in range(xp_gained):
-		target.damage = int(ceil(target.damage * 1.10))
-		target.max_hp = int(ceil(target.max_hp * 1.10))
-		target.attacks_per_second *= 1.05
-		target.attack_range *= 1.05
-		target.move_speed *= 1.05
+		target.damage += 1
+		target.max_hp += 8
+		target.attacks_per_second += 0.02
+		target.attack_range += 3.0
+		target.move_speed += 1.5
 		target.armor += 1 if target.armor > 0 else 0
-		target.evasion *= 1.05
-		target.crit_chance *= 1.05
-		target.skill_proc_chance *= 1.05
-		target.max_mana = int(ceil(target.max_mana * 1.05))
+		target.evasion += 0.5
+		target.crit_chance += 0.5
+		target.skill_proc_chance += 0.3
+		target.max_mana += 1
 
-	# Level-up loop
+	# Level-up loop (mild multiplicative — the real power spike)
 	while target.xp >= Unit.XP_TO_LEVEL:
 		target.xp -= Unit.XP_TO_LEVEL
 		target.level += 1
-		# Big stat boost on level-up
-		target.damage = int(ceil(target.damage * 1.40))
-		target.max_hp = int(ceil(target.max_hp * 1.40))
-		target.attacks_per_second *= 1.20
-		target.attack_range *= 1.15
-		target.move_speed *= 1.15
+		target.damage = int(ceil(target.damage * 1.08))
+		target.max_hp = int(ceil(target.max_hp * 1.08))
+		target.attacks_per_second *= 1.02
+		target.attack_range *= 1.03
+		target.move_speed *= 1.03
 		target.armor += 2 if target.armor > 0 else 0
-		target.evasion *= 1.20
-		target.crit_chance *= 1.20
-		target.skill_proc_chance *= 1.20
-		target.max_mana = int(ceil(target.max_mana * 1.20))
+		target.evasion += 2.0
+		target.crit_chance += 2.0
+		target.skill_proc_chance += 1.5
+		target.max_mana += 2
 
 	target.current_hp = target.max_hp
 	target.current_mana = 0
