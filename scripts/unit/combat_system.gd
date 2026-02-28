@@ -100,8 +100,11 @@ func _process_tick() -> void:
 			if unit.can_attack():
 				_attack(unit, target)
 		else:
-			# Out of range — move toward target
-			unit.move_toward_target(target.position, unit.move_speed)
+			# Out of range — move toward target, but only close enough to attack
+			var desired_dist := maxf(unit.attack_range - 10.0, 50.0)
+			var move_dist := minf(unit.move_speed, dist - desired_dist)
+			if move_dist > 0:
+				unit.move_toward_target(target.position, move_dist)
 
 	tick_completed.emit()
 

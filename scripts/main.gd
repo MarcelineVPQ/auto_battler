@@ -63,6 +63,22 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "+10 damage", "stat": "damage", "amount": 10},
 	{"name": "Sniper", "cost": 15, "rarity": "Rare", "desc": "+100 atk range", "stat": "attack_range", "amount": 100.0},
 	{"name": "Necromancy", "cost": 12, "rarity": "Rare", "desc": "Summoner: archers inherit 15% stats (max 3)", "stat": "necromancy", "amount": 1.0},
+	# ── Rare Hero-Specific (12g, round 6+) ──
+	{"name": "Blood Rage", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +0.2 atk/s", "stat": "blood_rage", "amount": 1.0, "class_req": "Grunt"},
+	{"name": "Deadeye", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +80 range", "stat": "deadeye", "amount": 1.0, "class_req": "Archer"},
+	{"name": "Phantom Step", "cost": 12, "rarity": "Rare", "desc": "+10% evade, +10% crit", "stat": "phantom_step", "amount": 1.0, "class_req": "Assassin"},
+	{"name": "Fortress", "cost": 12, "rarity": "Rare", "desc": "+5 armor, +40 HP", "stat": "fortress", "amount": 1.0, "class_req": "Tank"},
+	{"name": "Soul Rend", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +3 max mana", "stat": "soul_rend", "amount": 1.0, "class_req": "Warlock"},
+	{"name": "Divine Covenant", "cost": 12, "rarity": "Rare", "desc": "+30 HP, +3 max mana", "stat": "divine_covenant", "amount": 1.0, "class_req": "Priest"},
+	{"name": "Toxic Mastery", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +5% skill proc", "stat": "toxic_mastery", "amount": 1.0, "class_req": "Herbalist"},
+	# ── Epic Hero-Specific (18g, round 11+) ──
+	{"name": "Rampage", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +0.3 atk/s, +20 HP", "stat": "rampage", "amount": 1.0, "class_req": "Grunt"},
+	{"name": "Hawkeye", "cost": 18, "rarity": "Epic", "desc": "+12 dmg, +120 range, +8% crit", "stat": "hawkeye", "amount": 1.0, "class_req": "Archer"},
+	{"name": "Death's Embrace", "cost": 18, "rarity": "Epic", "desc": "+15% evade, +15% crit, +5 dmg", "stat": "deaths_embrace", "amount": 1.0, "class_req": "Assassin"},
+	{"name": "Bastion", "cost": 18, "rarity": "Epic", "desc": "+8 armor, +60 HP, +2 dmg", "stat": "bastion", "amount": 1.0, "class_req": "Tank"},
+	{"name": "Dark Pact", "cost": 18, "rarity": "Epic", "desc": "+15 dmg, +5 max mana", "stat": "dark_pact", "amount": 1.0, "class_req": "Warlock"},
+	{"name": "Ascension", "cost": 18, "rarity": "Epic", "desc": "+50 HP, +5 max mana, +5 dmg", "stat": "ascension", "amount": 1.0, "class_req": "Priest"},
+	{"name": "Plague Lord", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +8% skill proc, +3 armor", "stat": "plague_lord", "amount": 1.0, "class_req": "Herbalist"},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
@@ -411,8 +427,13 @@ func _roll_shop() -> void:
 	for i in range(HERO_SHOP_SLOTS):
 		var data: UnitData = hero_pool.pick_random()
 		shop_slots.append({"type": "hero", "data": data, "cost": data.farm_cost, "sold": false})
+	var pool = upgrade_pool.filter(func(u):
+		if u.rarity == "Epic": return GameManager.current_round >= 10
+		if u.rarity == "Rare": return GameManager.current_round >= 5
+		return true
+	)
 	for i in range(UPGRADE_SHOP_SLOTS):
-		var upgrade: Dictionary = upgrade_pool.pick_random()
+		var upgrade: Dictionary = pool.pick_random()
 		shop_slots.append({"type": "upgrade", "data": upgrade, "cost": upgrade.cost, "sold": false})
 	_update_shop_display()
 
@@ -420,6 +441,7 @@ func _update_shop_display() -> void:
 	for i in range(shop_slots.size()):
 		var slot: Dictionary = shop_slots[i]
 		var btn: Button = shop_buttons[i]
+		btn.modulate = Color(1, 1, 1)
 		if slot.sold:
 			btn.text = "SOLD"
 			btn.disabled = true
@@ -432,8 +454,15 @@ func _update_shop_display() -> void:
 			btn.disabled = false
 		else:
 			var upgrade: Dictionary = slot.data
-			btn.text = "%dg\n\n%s\n%s\n%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc]
+			var class_text := ""
+			if upgrade.has("class_req"):
+				class_text = "\n(%s only)" % upgrade.class_req
+			btn.text = "%dg\n\n%s\n%s\n%s%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc, class_text]
 			btn.disabled = false
+			if upgrade.rarity == "Rare":
+				btn.modulate = Color(0.85, 0.6, 1.0)
+			elif upgrade.rarity == "Epic":
+				btn.modulate = Color(1.0, 0.7, 0.3)
 
 	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
@@ -513,6 +542,10 @@ func _apply_pending_upgrade(unit: Unit) -> void:
 		return
 	var slot: Dictionary = shop_slots[_pending_upgrade_slot]
 	var upgrade: Dictionary = slot.data
+
+	# Validate class restriction
+	if upgrade.has("class_req") and unit.unit_data.unit_class != upgrade.class_req:
+		return
 
 	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
 	unit.applied_upgrades.append(upgrade.duplicate())
@@ -633,6 +666,78 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.necromancy_stacks += int(amount)
 		"primed":
 			unit.primed = true
+		# ── Rare Hero-Specific ──
+		"blood_rage":
+			unit.damage += 5
+			unit.attacks_per_second += 0.2
+		"deadeye":
+			unit.damage += 8
+			unit.attack_range += 80
+		"phantom_step":
+			unit.evasion += 10
+			unit.crit_chance += 10
+		"fortress":
+			unit.armor += 5
+			unit._update_armor_bar()
+			unit.max_hp += 40
+			unit.current_hp += 40
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+		"soul_rend":
+			unit.damage += 8
+			unit.max_mana += 3
+			unit._update_mana_bar()
+		"divine_covenant":
+			unit.max_hp += 30
+			unit.current_hp += 30
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.max_mana += 3
+			unit._update_mana_bar()
+		"toxic_mastery":
+			unit.damage += 5
+			unit.skill_proc_chance += 5
+		# ── Epic Hero-Specific ──
+		"rampage":
+			unit.damage += 10
+			unit.attacks_per_second += 0.3
+			unit.max_hp += 20
+			unit.current_hp += 20
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+		"hawkeye":
+			unit.damage += 12
+			unit.attack_range += 120
+			unit.crit_chance += 8
+		"deaths_embrace":
+			unit.evasion += 15
+			unit.crit_chance += 15
+			unit.damage += 5
+		"bastion":
+			unit.armor += 8
+			unit._update_armor_bar()
+			unit.max_hp += 60
+			unit.current_hp += 60
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.damage += 2
+		"dark_pact":
+			unit.damage += 15
+			unit.max_mana += 5
+			unit._update_mana_bar()
+		"ascension":
+			unit.max_hp += 50
+			unit.current_hp += 50
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.max_mana += 5
+			unit._update_mana_bar()
+			unit.damage += 5
+		"plague_lord":
+			unit.damage += 10
+			unit.skill_proc_chance += 8
+			unit.armor += 3
+			unit._update_armor_bar()
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
