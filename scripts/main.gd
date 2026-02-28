@@ -353,9 +353,27 @@ func _build_weighted_pool(weights: Dictionary) -> Array[UnitData]:
 	var pool: Array[UnitData] = []
 	for data in hero_pool:
 		var w: int = weights.get(data.unit_class, 1)
+		w = _apply_round_weight(w, data.pop_cost)
 		for i in range(w):
 			pool.append(data)
 	return pool
+
+# Bias toward cheap units early; expensive ones become common later
+func _apply_round_weight(base_weight: int, pop_cost: int) -> int:
+	var round_num := GameManager.current_round
+	if pop_cost <= 1:
+		# Cheap units: bonus weight early, fades by round 8
+		return base_weight + maxi(4 - round_num / 2, 0)
+	elif pop_cost == 2:
+		# Medium units: small bonus early
+		return base_weight + maxi(2 - round_num / 3, 0)
+	else:
+		# Expensive units (3-4): reduced early, full weight by round 6+
+		if round_num < 3:
+			return maxi(base_weight / 3, 1) if base_weight > 0 else 0
+		elif round_num < 6:
+			return maxi(base_weight / 2, 1) if base_weight > 0 else 0
+		return base_weight
 
 func _on_wave_selected(idx: int) -> void:
 	var wave: Dictionary = wave_options[idx]
@@ -455,8 +473,12 @@ func _build_shop_bar() -> void:
 func _roll_shop() -> void:
 	_cancel_shop_selection()
 	shop_slots.clear()
+	var hero_weights := {}
+	for data in hero_pool:
+		hero_weights[data.unit_class] = 1
+	var weighted_heroes := _build_weighted_pool(hero_weights)
 	for i in range(HERO_SHOP_SLOTS):
-		var data: UnitData = hero_pool.pick_random()
+		var data: UnitData = weighted_heroes.pick_random()
 		shop_slots.append({"type": "hero", "data": data, "cost": data.farm_cost, "sold": false})
 	var pool = upgrade_pool.filter(func(u):
 		if u.rarity == "Epic": return GameManager.current_round >= 10
