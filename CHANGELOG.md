@@ -1,5 +1,113 @@
 # Changelog
 
+## v0.6.0 — Color-Coded Shop, Tiered Rare/Epic Buffs, Range-Aware Movement
+
+### Rarity Color Coding
+- Shop upgrade cards are now tinted by rarity: **purple** for Rare, **orange** for Epic
+- Normal cards remain untinted
+
+### Tiered Rarity Unlocks
+- **Rare** upgrades only appear in the shop from **round 5+**
+- **Epic** upgrades only appear in the shop from **round 10+**
+
+### Hero-Specific Rare Buffs (12g, round 5+)
+- **Blood Rage** (Grunt) — +5 dmg, +0.2 atk/s
+- **Deadeye** (Archer) — +8 dmg, +80 range
+- **Phantom Step** (Assassin) — +10% evade, +10% crit
+- **Fortress** (Tank) — +5 armor, +40 HP
+- **Soul Rend** (Warlock) — +8 dmg, +3 max mana
+- **Divine Covenant** (Priest) — +30 HP, +3 max mana
+- **Toxic Mastery** (Herbalist) — +5 dmg, +5% skill proc
+
+### Hero-Specific Epic Buffs (18g, round 10+)
+- **Rampage** (Grunt) — +10 dmg, +0.3 atk/s, +20 HP
+- **Hawkeye** (Archer) — +12 dmg, +120 range, +8% crit
+- **Death's Embrace** (Assassin) — +15% evade, +15% crit, +5 dmg
+- **Bastion** (Tank) — +8 armor, +60 HP, +2 dmg
+- **Dark Pact** (Warlock) — +15 dmg, +5 max mana
+- **Ascension** (Priest) — +50 HP, +5 max mana, +5 dmg
+- **Plague Lord** (Herbalist) — +10 dmg, +8% skill proc, +3 armor
+
+### Class Restriction
+- Hero-specific upgrades can only be applied to the matching class
+- Card text shows "(Class only)" restriction
+
+### Range-Aware Movement
+- Ranged units (Archer, Warlock, etc.) now stop at their attack range instead of rushing into melee
+- Melee units still close to attack range normally
+
+---
+
+## v0.5.0 — Mana Bar, Ability System, Primed Rework
+
+### Mana System
+- Blue mana bar on every unit (above armor/health bars)
+- Mana starts at 0 each battle, charges via passive regen + per-attack gain
+- Abilities fire when mana is full, then mana resets to 0
+
+### Class Abilities
+- **Priest** — Heals all allied units for 2.5x damage
+- **Warlock** — Damage surges (1.5x permanent buff)
+- **Herbalist** — Poisons all enemies for 0.5x damage
+- **Archer** — Volley hits all enemies for 0.4x damage
+- **Grunt** — Frenzy: +30% attack speed
+- **Tank** — Shield Bash: +2 armor
+- **Assassin** — Shadowstrike: +50% crit chance
+
+### Primed Rework
+- Primed upgrade now starts the hero with full mana so ability fires on the first tick
+
+### Unit Scaling
+- Base scale reduced (0.4 to 0.22) with gentler growth (0.03/level) and hard cap at 0.45
+- Magic users get larger mana pools and faster regen; melee heroes charge abilities slower
+
+---
+
+## v0.4.0 — Hero Icons, Attack Effects, Combat Log, Auto-Merge Shop
+
+### Visual Overhaul
+- 8 distinct SVG class icons with team-colored rings replacing placeholder sprites
+- Projectile effects: arrow, magic bolt, holy bolt, poison glob fly from attacker to target
+- Melee slash effects: sword arc (Grunt/Tank), X-slash (Assassin) at target position
+
+### Battle UI
+- Tug-of-war army strength bar showing relative HP
+- Scrolling color-coded combat log with hit/crit/evade/kill/summon events
+
+### Auto-Merge Shop
+- Buying a hero you already own auto-feeds 1 XP (hold Shift to spawn a second copy)
+
+### Balance Pass
+- Summoner attack rate 0.3 to 0.2, summoned archers at 60% stats with halved power scaling
+- Necromancy capped at 3 stacks (15% per stack, cost 12g)
+- Tuned assassin, warlock, tank, grunt, herbalist stats
+
+---
+
+## v0.3.0 — XP/Level-Up, Summoner Class, Armor Bar
+
+### XP-Based Leveling
+- Replaced merge system with XP leveling: 4 XP per level, small stat boost per XP, large boost on level-up
+- No max level
+
+### Upgrade Card Slots
+- Upgrade slots gated by level (level + 1 slots)
+
+### Summoner Class (4g)
+- New hero: spawns archers instead of attacking
+- Summoned archers scale with summoner's XP, level, and stat purchases
+- Necromancy upgrade: summoned archers inherit a percentage of the summoner's bonus stats
+
+### Armor Bar
+- Armor bar UI displayed on all units
+- Armor purchasable for all heroes
+
+### Economy
+- Premium stat pricing tiers for evasion, crit, and skill proc
+- XP, level, and necromancy stacks persist across rounds
+
+---
+
 ## v0.2.0 — Expanded Upgrades, Sell & Freeze
 
 ### Upgrade Pool Expansion (30 total, up from 7)

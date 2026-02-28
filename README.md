@@ -17,22 +17,27 @@ Inspired by [Some of You May Die](https://store.steampowered.com/app/4124920/Som
 | Class | Cost | Role |
 |-------|:----:|------|
 | Warlock | 1g | Ranged caster, curse/reflect |
-| Priest | 1g | Support, armor buff, double strike |
+| Priest | 1g | Support, heals all allies |
 | Grunt | 1g | Fast melee brawler, high attack speed |
 | Tank | 2g | Frontline, high HP and armor |
 | Archer | 2g | Long-range DPS, high crit |
-| Herbalist | 3g | Ranged support, skill procs |
+| Herbalist | 3g | Ranged support, poison AoE |
 | Assassin | 3g | Glass cannon, evasion + crit burst |
+| Summoner | 4g | Spawns archers, scales with XP and necromancy |
 
 ## Key Mechanics
 
-- **Merging** — Drag a duplicate hero onto another of the same class for +25% all stats (up to 4x)
+- **XP & Leveling** — Buy a duplicate hero to auto-feed 1 XP (hold Shift for a separate copy). 4 XP per level with big stat boosts on level-up
+- **Upgrade Slots** — Each hero gets level + 1 upgrade card slots
+- **Mana & Abilities** — Mana charges via regen + attacks; abilities fire when full (Priest heals allies, Archer volleys all enemies, etc.)
 - **Stat Upgrades** — Click "+" buttons in the info panel to boost individual stats with gold
-- **Shop Upgrades** — Buy upgrade cards, then click a hero to apply (targeting mode with crosshair cursor). Right-click to cancel and get a refund. 30 upgrades across 4 price tiers
+- **Shop Upgrades** — Buy upgrade cards, then click a hero to apply (targeting mode with crosshair cursor). Right-click to cancel and get a refund
+- **Rarity Tiers** — Normal (always), Rare/purple (round 5+), Epic/orange (round 10+). Hero-specific rare/epic buffs require matching class
 - **Sell** — Select a hero and press X to sell for its base cost
 - **Freeze** — Press F to lock the shop so it carries over to the next round
 - **Re-roll** — Spend 2g to refresh the shop
 - **Interest** — Earn 10% on saved gold (up to 5g/round)
+- **Range-Aware Movement** — Ranged units hold position at their attack range instead of rushing into melee
 
 ## Controls
 
