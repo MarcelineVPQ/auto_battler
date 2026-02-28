@@ -93,6 +93,7 @@ func _process_tick() -> void:
 				summon_requested.emit(archer_data, unit.team, unit.position + offset, unit)
 				var team_tag := "cyan" if unit.team == Unit.Team.PLAYER else "red"
 				combat_event.emit("[color=%s]%s summons an Archer[/color]" % [team_tag, unit.unit_data.unit_name])
+				AudioManager.play("summon")
 			continue
 
 		if dist <= unit.attack_range:
@@ -134,13 +135,17 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	var t_name := target.unit_data.unit_name
 	if result.evaded:
 		combat_event.emit("[color=%s]%s evades %s[/color]" % [atk_tag, t_name, a_name])
+		AudioManager.play("miss", -6.0)
 	elif is_crit:
 		combat_event.emit("[color=%s]%s CRITS %s for %d dmg![/color]" % [atk_tag, a_name, t_name, result.damage])
+		AudioManager.play("crit")
 	elif result.hit:
 		combat_event.emit("[color=%s]%s hits %s for %d dmg[/color]" % [atk_tag, a_name, t_name, result.damage])
+		AudioManager.play("hit", -8.0)
 
 	if target.is_dead:
 		combat_event.emit("[color=%s]%s kills %s[/color]" % [atk_tag, a_name, t_name])
+		AudioManager.play("death")
 
 	# Visual feedback — attacker "punch" scale
 	var tween := attacker.create_tween()
@@ -183,6 +188,7 @@ func _trigger_ability(unit: Unit) -> void:
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 				ally.health_bar.value = ally.current_hp
 			combat_event.emit("[color=%s]%s casts %s — heals all allies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, heal_amount])
+			AudioManager.play("heal")
 		"Warlock":
 			# Vulnerable Curse: enemies within 200px get +20 crit vulnerability
 			var curse_range := 200.0
@@ -197,6 +203,7 @@ func _trigger_ability(unit: Unit) -> void:
 					enemy.crit_vulnerability += 20.0
 					cursed += 1
 			combat_event.emit("[color=%s]%s casts %s — %d enemies take +20%% crit![/color]" % [team_tag, u_name, unit.unit_data.ability_name, cursed])
+			AudioManager.play("curse")
 		"Herbalist":
 			# Poison all enemies (deal damage over time simulated as instant AoE)
 			var enemies := board.get_units_on_team(
@@ -210,10 +217,12 @@ func _trigger_ability(unit: Unit) -> void:
 				if enemy.is_dead:
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s casts %s — poisons all enemies for %d![/color]" % [team_tag, u_name, unit.unit_data.ability_name, poison_dmg])
+			AudioManager.play("poison")
 		"Grunt":
 			# Frenzy: temporary attack speed boost
 			unit.attacks_per_second *= 1.3
 			combat_event.emit("[color=%s]%s enters Frenzy — attack speed up![/color]" % [team_tag, u_name])
+			AudioManager.play("ability")
 		"Tank":
 			# Shield Bash: deal (3 * armor + damage) to nearest enemy
 			var bash_target := board.find_nearest_enemy(unit)
@@ -222,6 +231,7 @@ func _trigger_ability(unit: Unit) -> void:
 				var bash_result := bash_target.take_damage(bash_dmg)
 				var t_name := bash_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s uses Shield Bash on %s for %d![/color]" % [team_tag, u_name, t_name, bash_result.damage])
+				AudioManager.play("ability")
 				if bash_target.is_dead:
 					combat_event.emit("[color=%s]%s kills %s[/color]" % [team_tag, u_name, t_name])
 					board.remove_unit(bash_target)
@@ -231,6 +241,7 @@ func _trigger_ability(unit: Unit) -> void:
 			# Shadowstrike: guaranteed crit on next hit
 			unit.crit_chance += 50.0
 			combat_event.emit("[color=%s]%s prepares Shadowstrike — next hit is lethal![/color]" % [team_tag, u_name])
+			AudioManager.play("ability")
 		"Archer":
 			# Volley: hit all enemies for reduced damage
 			var enemies := board.get_units_on_team(
@@ -244,6 +255,7 @@ func _trigger_ability(unit: Unit) -> void:
 				if enemy.is_dead:
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s fires Volley — hits all enemies for %d![/color]" % [team_tag, u_name, volley_dmg])
+			AudioManager.play("ability")
 
 	# Visual pulse for ability cast
 	var tween := unit.create_tween()

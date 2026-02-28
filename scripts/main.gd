@@ -196,6 +196,7 @@ func _show_warning(text: String) -> void:
 	warning_label.text = text
 	warning_label.modulate = Color(1, 1, 1, 1)
 	warning_label.visible = true
+	AudioManager.play("warning", -4.0)
 	var tween := create_tween()
 	tween.tween_interval(1.0)
 	tween.tween_property(warning_label, "modulate", Color(1, 1, 1, 0), 0.5)
@@ -634,6 +635,7 @@ func _buy_hero(idx: int) -> void:
 		_show_info_panel(merge_target)
 		_update_shop_display()
 		_update_ui()
+		AudioManager.play("buy")
 		return
 
 	# Spawn new unit — check farm budget
@@ -652,6 +654,7 @@ func _buy_hero(idx: int) -> void:
 	slot.sold = true
 	_update_shop_display()
 	_update_ui()
+	AudioManager.play("buy")
 
 func _find_player_unit_by_class(unit_class: String) -> Unit:
 	for unit in board.get_units_on_team(Unit.Team.PLAYER):
@@ -674,6 +677,7 @@ func _buy_upgrade(idx: int) -> void:
 	_update_shop_display()
 	_update_ui()
 	board.queue_redraw()
+	AudioManager.play("buy")
 
 func _apply_pending_upgrade(unit: Unit) -> void:
 	if unit.applied_upgrades.size() >= unit.get_max_upgrades():
@@ -689,6 +693,7 @@ func _apply_pending_upgrade(unit: Unit) -> void:
 
 	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
 	unit.applied_upgrades.append(upgrade.duplicate())
+	AudioManager.play("upgrade")
 
 	_targeting_upgrade = false
 	_pending_upgrade_slot = -1
@@ -723,6 +728,7 @@ func _on_reroll_pressed() -> void:
 	if GameManager.spend_gold(GameManager.REROLL_COST):
 		_roll_shop()
 		_update_ui()
+		AudioManager.play("reroll")
 
 func _show_shop() -> void:
 	shop_bar.visible = true
@@ -754,6 +760,7 @@ func _sell_selected_unit() -> void:
 	board.deselect()
 	_hide_info_panel()
 	_update_ui()
+	AudioManager.play("sell")
 
 # ── Freeze Shop ──────────────────────────────────────────────
 
@@ -1173,15 +1180,18 @@ func _on_ready_pressed() -> void:
 	GameManager.start_battle()
 	combat_system.start_combat()
 	_update_ui()
+	AudioManager.play("round_start")
 
 func _on_combat_ended(player_won: bool) -> void:
 	GameManager.end_battle(player_won)
 	if player_won:
 		result_label.text = "VICTORY!"
 		result_label.add_theme_color_override("font_color", Color.GREEN)
+		AudioManager.play("victory")
 	else:
 		result_label.text = "DEFEAT! — Rematch..."
 		result_label.add_theme_color_override("font_color", Color.RED)
+		AudioManager.play("defeat")
 	_update_ui()
 
 	if GameManager.lives > 0 and GameManager.current_round < GameManager.MAX_ROUNDS:
@@ -1225,6 +1235,7 @@ func _on_game_over() -> void:
 	result_label.add_theme_color_override("font_color", Color.RED)
 	ready_button.disabled = true
 	_hide_shop()
+	AudioManager.play("game_over")
 
 # ── Farm Helpers ─────────────────────────────────────────────
 
@@ -1241,6 +1252,7 @@ func _on_buy_farm_pressed() -> void:
 		_show_warning("Not enough gold!")
 		return
 	_update_ui()
+	AudioManager.play("buy")
 
 # ── UI Updates ──────────────────────────────────────────────
 
