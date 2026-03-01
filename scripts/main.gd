@@ -138,6 +138,7 @@ var wave_panel: PanelContainer
 var wave_title: Label
 var wave_cards_container: HBoxContainer
 var wave_options: Array[Dictionary] = []
+var _pending_bonus_gold: int = 0
 
 # Shop UI (built in code)
 var shop_bar: HBoxContainer
@@ -167,10 +168,13 @@ var _info_unit: Unit = null
 # Warning feedback label
 var warning_label: Label
 
-# Battle UI — strength bar & combat log
+# Battle UI — strength bar, DPS panel & combat log
 var strength_bar_container: HBoxContainer
 var strength_bar_player: ColorRect
 var strength_bar_enemy: ColorRect
+var dps_panel: HBoxContainer
+var dps_player_label: Label
+var dps_enemy_label: Label
 var combat_log_scroll: ScrollContainer
 var combat_log: RichTextLabel
 
@@ -244,6 +248,32 @@ func _build_battle_ui() -> void:
 
 	strength_bar_container.visible = false
 
+	# DPS panel — live team DPS readout below strength bar
+	dps_panel = HBoxContainer.new()
+	dps_panel.position = Vector2(55, 52)
+	dps_panel.custom_minimum_size = Vector2(960, 20)
+	dps_panel.add_theme_constant_override("separation", 0)
+	dps_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(dps_panel)
+
+	dps_player_label = Label.new()
+	dps_player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	dps_player_label.add_theme_font_size_override("font_size", 12)
+	dps_player_label.add_theme_color_override("font_color", Color(0.4, 0.65, 1.0))
+	dps_player_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dps_player_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dps_panel.add_child(dps_player_label)
+
+	dps_enemy_label = Label.new()
+	dps_enemy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	dps_enemy_label.add_theme_font_size_override("font_size", 12)
+	dps_enemy_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	dps_enemy_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dps_enemy_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dps_panel.add_child(dps_enemy_label)
+
+	dps_panel.visible = false
+
 	# Combat log — scrolling text at bottom-right
 	combat_log_scroll = ScrollContainer.new()
 	combat_log_scroll.position = Vector2(1010, 440)
@@ -269,11 +299,15 @@ func _on_combat_event(text: String) -> void:
 
 func _on_tick_completed() -> void:
 	var player_hp := 0
+	var player_dps := 0.0
 	var enemy_hp := 0
+	var enemy_dps := 0.0
 	for unit in board.get_units_on_team(Unit.Team.PLAYER):
 		player_hp += unit.current_hp
+		player_dps += unit.damage * unit.attacks_per_second
 	for unit in board.get_units_on_team(Unit.Team.ENEMY):
 		enemy_hp += unit.current_hp
+		enemy_dps += unit.damage * unit.attacks_per_second
 
 	var total := player_hp + enemy_hp
 	if total <= 0:
@@ -283,12 +317,17 @@ func _on_tick_completed() -> void:
 	strength_bar_player.custom_minimum_size.x = bar_width * ratio
 	strength_bar_enemy.custom_minimum_size.x = bar_width * (1.0 - ratio)
 
+	dps_player_label.text = "Your DPS: %.1f" % player_dps
+	dps_enemy_label.text = "Enemy DPS: %.1f" % enemy_dps
+
 func _show_battle_ui() -> void:
 	strength_bar_container.visible = true
+	dps_panel.visible = true
 	combat_log_scroll.visible = true
 
 func _hide_battle_ui() -> void:
 	strength_bar_container.visible = false
+	dps_panel.visible = false
 	combat_log_scroll.visible = false
 
 # ── Wave Select UI ──────────────────────────────────────────
@@ -349,12 +388,31 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 200)
+		btn.custom_minimum_size = Vector2(240, 210)
 
 		var card := VBoxContainer.new()
 		card.add_theme_constant_override("separation", 4)
 		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+		# Gold bonus banner (3rd card)
+		var bonus_gold: int = wave.get("bonus_gold", 0)
+		if bonus_gold > 0:
+			var banner := Label.new()
+			banner.text = "+%dg BONUS" % bonus_gold
+			banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			banner.add_theme_font_size_override("font_size", 13)
+			banner.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
+			banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var banner_bg := PanelContainer.new()
+			var bg_style := StyleBoxFlat.new()
+			bg_style.bg_color = Color(1.0, 0.82, 0.3)
+			bg_style.set_corner_radius_all(3)
+			bg_style.set_content_margin_all(2)
+			banner_bg.add_theme_stylebox_override("panel", bg_style)
+			banner_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			banner_bg.add_child(banner)
+			card.add_child(banner_bg)
 
 		# Strategy title
 		var title := Label.new()
@@ -412,6 +470,25 @@ func _populate_wave_cards() -> void:
 			buffs.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			card.add_child(buffs)
 
+		# Combined DPS stat
+		var total_dps := 0.0
+		for entry in wave.enemies:
+			var data: UnitData = entry.data
+			var lvl: int = entry.get("level", 1)
+			var dmg := float(data.damage)
+			var aps := data.attacks_per_second
+			if lvl > 1:
+				dmg *= 1.0 + (lvl - 1) * 0.45
+				aps *= 1.0 + (lvl - 1) * 0.18
+			total_dps += dmg * aps
+		var dps_label := Label.new()
+		dps_label.text = "DPS: %.1f" % total_dps
+		dps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		dps_label.add_theme_font_size_override("font_size", 11)
+		dps_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+		dps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(dps_label)
+
 		# Summary line
 		var summary := Label.new()
 		summary.text = "%d units (%d farms) — %s" % [wave.total_units, wave.total_farms, wave.strategy]
@@ -433,6 +510,9 @@ func _generate_wave_options() -> Array[Dictionary]:
 	var options: Array[Dictionary] = []
 	for i in range(3):
 		options.append(_generate_single_wave())
+	# 3rd option is harder — give it a bonus gold reward
+	var bonus := 5 + randi_range(0, GameManager.current_round)
+	options[2].bonus_gold = bonus
 	return options
 
 func _generate_single_wave() -> Dictionary:
@@ -504,6 +584,7 @@ func _apply_round_weight(base_weight: int, pop_cost: int) -> int:
 
 func _on_wave_selected(idx: int) -> void:
 	var wave: Dictionary = wave_options[idx]
+	_pending_bonus_gold = wave.get("bonus_gold", 0)
 	_hide_wave_select()
 
 	var enemies: Array = wave.enemies
@@ -1391,7 +1472,13 @@ func _on_combat_ended(player_won: bool) -> void:
 	var is_first_loss := not player_won and not GameManager.first_loss_given
 	GameManager.end_battle(player_won)
 	if player_won:
-		result_label.text = "VICTORY!"
+		if _pending_bonus_gold > 0:
+			GameManager.gold += _pending_bonus_gold
+			GameManager.gold_changed.emit(GameManager.gold)
+			result_label.text = "VICTORY! (+%dg bonus)" % _pending_bonus_gold
+			_pending_bonus_gold = 0
+		else:
+			result_label.text = "VICTORY!"
 		result_label.add_theme_color_override("font_color", Color.GREEN)
 		AudioManager.play("victory")
 	else:
