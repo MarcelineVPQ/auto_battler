@@ -858,6 +858,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.evasion += amount
 		"attack_range":
 			unit.attack_range += amount
+		"ability_range":
+			unit.ability_range += amount
 		"move_speed":
 			unit.move_speed += amount
 		"crit_chance":
@@ -1053,6 +1055,7 @@ func _save_squad() -> void:
 				"max_hp": unit.max_hp,
 				"attacks_per_second": unit.attacks_per_second,
 				"attack_range": unit.attack_range,
+				"ability_range": unit.ability_range,
 				"move_speed": unit.move_speed,
 				"armor": unit.armor,
 				"max_armor": unit.max_armor,
@@ -1092,6 +1095,7 @@ func _restore_squad() -> void:
 			unit.current_hp = s.max_hp
 			unit.attacks_per_second = s.attacks_per_second
 			unit.attack_range = s.attack_range
+			unit.ability_range = s.get("ability_range", unit.unit_data.ability_range)
 			unit.move_speed = s.move_speed
 			unit.max_armor = s.get("max_armor", s.armor)
 			unit.armor = int(unit.max_armor * 0.75) if unit.max_armor > 0 else 0
@@ -1106,6 +1110,22 @@ func _restore_squad() -> void:
 			unit.health_bar.value = s.max_hp
 			unit._update_armor_bar()
 			unit.update_scale()
+
+	# Paladin aura: allies within ability_range of a Paladin get full armor restore
+	var player_units := board.get_units_on_team(Unit.Team.PLAYER)
+	var paladins: Array[Unit] = []
+	for u in player_units:
+		if u.unit_data.unit_class == "Paladin":
+			paladins.append(u)
+	if not paladins.is_empty():
+		for u in player_units:
+			if u.max_armor <= 0:
+				continue
+			for pal in paladins:
+				if u.position.distance_to(pal.position) <= pal.ability_range:
+					u.armor = u.max_armor
+					u._update_armor_bar()
+					break
 
 # ── Unit Spawning ───────────────────────────────────────────
 
@@ -1427,6 +1447,7 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 3.0)
 	_add_stat_row(unit, "evasion", "Evasion", "%.0f%%" % unit.evasion, can_buy, 2.0)
 	_add_stat_row(unit, "attack_range", "Atk Range", "%.0f" % unit.attack_range, can_buy, 20.0)
+	_add_stat_row(unit, "ability_range", "Abl Range", "%.0f" % unit.ability_range, can_buy, 20.0)
 	_add_stat_row(unit, "move_speed", "Move Speed", "%.0f" % unit.move_speed, can_buy, 5.0)
 	_add_stat_row(unit, "crit_chance", "Crit", "%.0f%%" % unit.crit_chance, can_buy, 1.0)
 	_add_stat_row(unit, "skill_proc_chance", "Skill Proc", "%.0f%%" % unit.skill_proc_chance, can_buy, 1.0)
@@ -1535,10 +1556,10 @@ func _show_shop_preview(idx: int) -> void:
 
 		var stats := Label.new()
 		stats.add_theme_font_size_override("font_size", 13)
-		stats.text = "Damage: %d\nAtk/Sec: %.2f\nAbility CD: %.1fs\nHealth: %d\nMana: %d\nArmor: %d\nEvasion: %.0f%%\nAtk Range: %.0f\nMove Speed: %.0f\nCrit: %.0f%%\nSkill Proc: %.0f%%" % [
+		stats.text = "Damage: %d\nAtk/Sec: %.2f\nAbility CD: %.1fs\nHealth: %d\nMana: %d\nArmor: %d\nEvasion: %.0f%%\nAtk Range: %.0f\nAbl Range: %.0f\nMove Speed: %.0f\nCrit: %.0f%%\nSkill Proc: %.0f%%" % [
 			data.damage, data.attacks_per_second, data.ability_cooldown,
 			data.max_hp, data.max_mana, data.armor, data.evasion,
-			data.attack_range, data.move_speed, data.crit_chance, data.skill_proc_chance
+			data.attack_range, data.ability_range, data.move_speed, data.crit_chance, data.skill_proc_chance
 		]
 		info_panel.add_child(stats)
 

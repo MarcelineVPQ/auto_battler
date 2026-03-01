@@ -194,18 +194,24 @@ func _trigger_ability(unit: Unit) -> void:
 		"priest_heal":
 			var allies := board.get_units_on_team(unit.team)
 			var heal_amount := int(unit.damage * 4.0)
+			var healed := 0
 			for ally in allies:
 				if ally.is_dead:
 					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
+					continue
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 				ally.health_bar.value = ally.current_hp
-			combat_event.emit("[color=%s]%s casts %s — heals all allies for %d![/color]" % [team_tag, u_name, ab_name, heal_amount])
+				healed += 1
+			combat_event.emit("[color=%s]%s casts %s — heals %d allies for %d![/color]" % [team_tag, u_name, ab_name, healed, heal_amount])
 			AudioManager.play("heal")
 		"priest_shield":
 			var allies := board.get_units_on_team(unit.team)
 			var weakest: Unit = null
 			for ally in allies:
 				if ally.is_dead:
+					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
 				if weakest == null or ally.current_hp < weakest.current_hp:
 					weakest = ally
@@ -223,6 +229,8 @@ func _trigger_ability(unit: Unit) -> void:
 			for ally in allies:
 				if ally.is_dead:
 					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
+					continue
 				if weakest == null or ally.current_hp < weakest.current_hp:
 					weakest = ally
 			if weakest:
@@ -236,7 +244,6 @@ func _trigger_ability(unit: Unit) -> void:
 
 		# ── Warlock ──
 		"warlock_curse":
-			var curse_range := 200.0
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
@@ -244,7 +251,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				if unit.position.distance_to(enemy.position) <= curse_range:
+				if unit.position.distance_to(enemy.position) <= unit.ability_range:
 					enemy.crit_vulnerability += 20.0
 					cursed += 1
 			combat_event.emit("[color=%s]%s casts %s — %d enemies take +20%% crit![/color]" % [team_tag, u_name, ab_name, cursed])
@@ -278,26 +285,33 @@ func _trigger_ability(unit: Unit) -> void:
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
 			var poison_dmg := int(unit.damage * 0.5)
+			var poisoned := 0
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
+				if unit.position.distance_to(enemy.position) > unit.ability_range:
+					continue
 				enemy.take_damage(poison_dmg)
+				poisoned += 1
 				if enemy.is_dead:
 					board.remove_unit(enemy)
-			combat_event.emit("[color=%s]%s casts %s — poisons all enemies for %d![/color]" % [team_tag, u_name, ab_name, poison_dmg])
+			combat_event.emit("[color=%s]%s casts %s — poisons %d enemies for %d![/color]" % [team_tag, u_name, ab_name, poisoned, poison_dmg])
 			AudioManager.play("poison")
 		"herbalist_regen":
 			var allies := board.get_units_on_team(unit.team)
 			var heal_amount := int(unit.damage * 2.0)
+			var healed := 0
 			for ally in allies:
 				if ally.is_dead:
 					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
+					continue
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 				ally.health_bar.value = ally.current_hp
-			combat_event.emit("[color=%s]%s casts %s — heals all allies for %d![/color]" % [team_tag, u_name, ab_name, heal_amount])
+				healed += 1
+			combat_event.emit("[color=%s]%s casts %s — heals %d allies for %d![/color]" % [team_tag, u_name, ab_name, healed, heal_amount])
 			AudioManager.play("heal")
 		"herbalist_burst":
-			var burst_range := 150.0
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
@@ -306,7 +320,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				if unit.position.distance_to(enemy.position) <= burst_range:
+				if unit.position.distance_to(enemy.position) <= unit.ability_range:
 					enemy.take_damage(burst_dmg)
 					hit_count += 1
 					if enemy.is_dead:
@@ -317,18 +331,32 @@ func _trigger_ability(unit: Unit) -> void:
 		# ── Grunt ──
 		"grunt_frenzy":
 			unit.attacks_per_second *= 1.3
-			combat_event.emit("[color=%s]%s enters %s — attack speed up![/color]" % [team_tag, u_name, ab_name])
+			var frenzy_buffed := 0
+			for ally in board.get_units_on_team(unit.team):
+				if ally.is_dead or ally == unit:
+					continue
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
+					ally.attacks_per_second *= 1.1
+					frenzy_buffed += 1
+			var msg := "[color=%s]%s enters %s — attack speed up!" % [team_tag, u_name, ab_name]
+			if frenzy_buffed > 0:
+				msg += " %d nearby allies gain +10%% atk speed." % frenzy_buffed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("ability")
 		"grunt_warcry":
 			var allies := board.get_units_on_team(unit.team)
+			var buffed := 0
 			for ally in allies:
 				if ally.is_dead:
 					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
+					continue
 				ally.damage += 3
-			combat_event.emit("[color=%s]%s uses %s — all allies gain +3 damage![/color]" % [team_tag, u_name, ab_name])
+				buffed += 1
+			combat_event.emit("[color=%s]%s uses %s — %d allies gain +3 damage![/color]" % [team_tag, u_name, ab_name, buffed])
 			AudioManager.play("ability")
 		"grunt_cleave":
-			var cleave_range := 100.0
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
@@ -337,7 +365,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				if unit.position.distance_to(enemy.position) <= cleave_range:
+				if unit.position.distance_to(enemy.position) <= unit.ability_range:
 					enemy.take_damage(cleave_dmg)
 					hit_count += 1
 					if enemy.is_dead:
@@ -360,7 +388,6 @@ func _trigger_ability(unit: Unit) -> void:
 			else:
 				combat_event.emit("[color=%s]%s uses %s — no target![/color]" % [team_tag, u_name, ab_name])
 		"tank_taunt":
-			var taunt_range := 150.0
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
@@ -368,7 +395,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				if unit.position.distance_to(enemy.position) <= taunt_range:
+				if unit.position.distance_to(enemy.position) <= unit.ability_range:
 					# Move enemy closer to force targeting
 					var dir := (unit.position - enemy.position).normalized()
 					enemy.position += dir * 10.0
@@ -384,37 +411,89 @@ func _trigger_ability(unit: Unit) -> void:
 			unit.max_armor = maxi(unit.max_armor, unit.armor)
 			unit._update_armor_bar()
 			unit.move_speed = 0.0
-			combat_event.emit("[color=%s]%s uses %s — +%d armor, rooted![/color]" % [team_tag, u_name, ab_name, fortify_armor])
+			var fortify_buffed := 0
+			var ally_armor := int(fortify_armor * 0.25)
+			for ally in board.get_units_on_team(unit.team):
+				if ally.is_dead or ally == unit:
+					continue
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
+					ally.armor += ally_armor
+					ally.max_armor = maxi(ally.max_armor, ally.armor)
+					ally._update_armor_bar()
+					fortify_buffed += 1
+			var msg := "[color=%s]%s uses %s — +%d armor, rooted!" % [team_tag, u_name, ab_name, fortify_armor]
+			if fortify_buffed > 0:
+				msg += " %d nearby allies gain +%d armor." % [fortify_buffed, ally_armor]
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("ability")
 
 		# ── Assassin ──
 		"assassin_shadow":
 			unit.crit_chance += 50.0
-			combat_event.emit("[color=%s]%s prepares %s — next hit is lethal![/color]" % [team_tag, u_name, ab_name])
+			var shadow_buffed := 0
+			for ally in board.get_units_on_team(unit.team):
+				if ally.is_dead or ally == unit:
+					continue
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
+					ally.crit_chance += 10.0
+					shadow_buffed += 1
+			var msg := "[color=%s]%s prepares %s — next hit is lethal!" % [team_tag, u_name, ab_name]
+			if shadow_buffed > 0:
+				msg += " %d nearby allies gain +10%% crit." % shadow_buffed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("ability")
 		"assassin_poison":
 			# Bonus damage on next 3 attacks simulated as +damage buff
 			var bonus := int(unit.damage * 0.8)
 			unit.damage += bonus * 3
-			combat_event.emit("[color=%s]%s coats %s — +%d bonus damage![/color]" % [team_tag, u_name, ab_name, bonus * 3])
+			var half_bonus := int(bonus * 1.5)  # half of (bonus * 3)
+			var poison_buffed := 0
+			for ally in board.get_units_on_team(unit.team):
+				if ally.is_dead or ally == unit:
+					continue
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
+					ally.damage += half_bonus
+					poison_buffed += 1
+			var msg := "[color=%s]%s coats %s — +%d bonus damage!" % [team_tag, u_name, ab_name, bonus * 3]
+			if poison_buffed > 0:
+				msg += " %d nearby allies gain +%d damage." % [poison_buffed, half_bonus]
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("ability")
 		"assassin_vanish":
 			unit.evasion += 80.0
 			unit.crit_chance += 100.0
-			combat_event.emit("[color=%s]%s uses %s — +80%% evasion & guaranteed crit![/color]" % [team_tag, u_name, ab_name])
+			var vanish_buffed := 0
+			for ally in board.get_units_on_team(unit.team):
+				if ally.is_dead or ally == unit:
+					continue
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
+					ally.evasion += 20.0
+					vanish_buffed += 1
+			var msg := "[color=%s]%s uses %s — +80%% evasion & guaranteed crit!" % [team_tag, u_name, ab_name]
+			if vanish_buffed > 0:
+				msg += " %d nearby allies gain +20%% evasion." % vanish_buffed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("ability")
 
 		# ── Paladin ──
 		"paladin_aegis":
 			var allies := board.get_units_on_team(unit.team)
 			var armor_restore := int(unit.damage * 3.0)
+			var buffed := 0
 			for ally in allies:
 				if ally.is_dead:
+					continue
+				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
 				ally.armor = mini(ally.armor + armor_restore, ally.max_armor)
 				ally._update_armor_bar()
 				ally.damage += 2
-			combat_event.emit("[color=%s]%s casts %s — restores %d armor & +2 dmg to all allies![/color]" % [team_tag, u_name, ab_name, armor_restore])
+				buffed += 1
+			combat_event.emit("[color=%s]%s casts %s — restores %d armor & +2 dmg to %d allies![/color]" % [team_tag, u_name, ab_name, armor_restore, buffed])
 			AudioManager.play("heal")
 		"paladin_smite":
 			var smite_target := board.find_nearest_enemy(unit)
@@ -430,7 +509,6 @@ func _trigger_ability(unit: Unit) -> void:
 					board.remove_unit(smite_target)
 			AudioManager.play("ability")
 		"paladin_consecrate":
-			var cons_range := 120.0
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
@@ -441,7 +519,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
-				if unit.position.distance_to(enemy.position) <= cons_range:
+				if unit.position.distance_to(enemy.position) <= unit.ability_range:
 					enemy.take_damage(cons_dmg)
 					hit_count += 1
 					if enemy.is_dead:
@@ -449,7 +527,7 @@ func _trigger_ability(unit: Unit) -> void:
 			for ally in allies:
 				if ally.is_dead:
 					continue
-				if unit.position.distance_to(ally.position) <= cons_range:
+				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 					ally.health_bar.value = ally.current_hp
 			combat_event.emit("[color=%s]%s casts %s — hits %d enemies for %d, heals nearby allies![/color]" % [team_tag, u_name, ab_name, hit_count, cons_dmg])
@@ -461,13 +539,17 @@ func _trigger_ability(unit: Unit) -> void:
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
 			var volley_dmg := int(unit.damage * 0.4)
+			var volley_hit := 0
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
+				if unit.position.distance_to(enemy.position) > unit.ability_range:
+					continue
 				enemy.take_damage(volley_dmg)
+				volley_hit += 1
 				if enemy.is_dead:
 					board.remove_unit(enemy)
-			combat_event.emit("[color=%s]%s fires %s — hits all enemies for %d![/color]" % [team_tag, u_name, ab_name, volley_dmg])
+			combat_event.emit("[color=%s]%s fires %s — hits %d enemies for %d![/color]" % [team_tag, u_name, ab_name, volley_hit, volley_dmg])
 			AudioManager.play("ability")
 		"archer_pierce":
 			var pierce_target := board.find_nearest_enemy(unit)

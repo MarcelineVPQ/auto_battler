@@ -36,6 +36,7 @@ var current_hp: int
 var damage: int
 var attacks_per_second: float
 var attack_range: float
+var ability_range: float
 var move_speed: float
 var armor: int
 var max_armor: int
@@ -69,6 +70,7 @@ func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	damage = data.damage
 	attacks_per_second = data.attacks_per_second
 	attack_range = data.attack_range
+	ability_range = data.ability_range
 	move_speed = data.move_speed
 	armor = data.armor
 	max_armor = data.armor

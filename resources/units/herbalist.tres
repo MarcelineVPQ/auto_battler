@@ -13,6 +13,7 @@ max_hp = 90
 damage = 10
 attacks_per_second = 0.7
 attack_range = 180.0
+ability_range = 200.0
 move_speed = 35.0
 armor = 5
 evasion = 0.0

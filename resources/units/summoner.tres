@@ -13,6 +13,7 @@ max_hp = 50
 damage = 0
 attacks_per_second = 0.2
 attack_range = 0.0
+ability_range = 200.0
 move_speed = 25.0
 armor = 0
 evasion = 0.0

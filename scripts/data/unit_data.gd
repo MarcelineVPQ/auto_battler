@@ -11,6 +11,7 @@ extends Resource
 @export var damage: int = 4
 @export var attacks_per_second: float = 0.5
 @export var attack_range: float = 100.0   # pixels (circular radius)
+@export var ability_range: float = 150.0  # pixels — radius for ability effects
 @export var move_speed: float = 60.0      # pixels per combat tick
 @export var armor: int = 0
 @export var evasion: float = 0.0          # percentage 0-100
