@@ -136,6 +136,7 @@ var drag_offset: Vector2 = Vector2.ZERO
 var wave_overlay: ColorRect
 var wave_panel: PanelContainer
 var wave_title: Label
+var wave_dps_label: Label
 var wave_cards_container: HBoxContainer
 var wave_options: Array[Dictionary] = []
 var _pending_bonus_gold: int = 0
@@ -251,7 +252,7 @@ func _build_battle_ui() -> void:
 	# DPS panel — live team DPS readout below strength bar
 	dps_panel = HBoxContainer.new()
 	dps_panel.position = Vector2(55, 52)
-	dps_panel.custom_minimum_size = Vector2(960, 20)
+	dps_panel.custom_minimum_size = Vector2(900, 20)
 	dps_panel.add_theme_constant_override("separation", 0)
 	dps_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(dps_panel)
@@ -276,17 +277,18 @@ func _build_battle_ui() -> void:
 
 	# Combat log — scrolling text at bottom-right
 	combat_log_scroll = ScrollContainer.new()
-	combat_log_scroll.position = Vector2(1010, 440)
-	combat_log_scroll.custom_minimum_size = Vector2(260, 160)
-	combat_log_scroll.size = Vector2(260, 160)
+	combat_log_scroll.position = Vector2(970, 440)
+	combat_log_scroll.custom_minimum_size = Vector2(250, 160)
+	combat_log_scroll.size = Vector2(250, 160)
 	ui_layer.add_child(combat_log_scroll)
 
 	combat_log = RichTextLabel.new()
 	combat_log.bbcode_enabled = true
 	combat_log.fit_content = true
-	combat_log.custom_minimum_size = Vector2(260, 0)
+	combat_log.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	combat_log.custom_minimum_size = Vector2(250, 0)
 	combat_log.scroll_active = false
-	combat_log.add_theme_font_size_override("normal_font_size", 11)
+	combat_log.add_theme_font_size_override("normal_font_size", 10)
 	combat_log_scroll.add_child(combat_log)
 
 	combat_log_scroll.visible = false
@@ -344,27 +346,34 @@ func _build_wave_select_ui() -> void:
 	wave_overlay.add_child(center)
 
 	wave_panel = PanelContainer.new()
-	wave_panel.custom_minimum_size = Vector2(780, 260)
+	wave_panel.custom_minimum_size = Vector2(780, 0)
+	wave_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
 	panel_style.border_color = Color(0.6, 0.6, 0.7, 0.8)
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(6)
-	panel_style.set_content_margin_all(16)
+	panel_style.set_content_margin_all(10)
 	wave_panel.add_theme_stylebox_override("panel", panel_style)
 	center.add_child(wave_panel)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 15)
+	vbox.add_theme_constant_override("separation", 3)
 	wave_panel.add_child(vbox)
 
 	wave_title = Label.new()
 	wave_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	wave_title.add_theme_font_size_override("font_size", 28)
+	wave_title.add_theme_font_size_override("font_size", 22)
 	vbox.add_child(wave_title)
 
+	wave_dps_label = Label.new()
+	wave_dps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wave_dps_label.add_theme_font_size_override("font_size", 12)
+	wave_dps_label.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	vbox.add_child(wave_dps_label)
+
 	wave_cards_container = HBoxContainer.new()
-	wave_cards_container.add_theme_constant_override("separation", 15)
+	wave_cards_container.add_theme_constant_override("separation", 10)
 	wave_cards_container.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(wave_cards_container)
 
@@ -373,13 +382,23 @@ func _build_wave_select_ui() -> void:
 func _show_wave_select() -> void:
 	wave_options = _generate_wave_options()
 	wave_title.text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	wave_dps_label.text = "Your Squad DPS: %.1f" % _get_squad_dps()
 	_populate_wave_cards()
 	wave_overlay.visible = true
 
 func _show_wave_select_rematch() -> void:
 	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	wave_dps_label.text = "Your Squad DPS: %.1f" % _get_squad_dps()
 	_populate_wave_cards()
 	wave_overlay.visible = true
+
+func _get_squad_dps() -> float:
+	var total := 0.0
+	for entry in player_squad:
+		if entry.has("stats"):
+			var s: Dictionary = entry.stats
+			total += s.get("damage", 0) * s.get("attacks_per_second", 0.5)
+	return total
 
 func _populate_wave_cards() -> void:
 	for child in wave_cards_container.get_children():
@@ -388,20 +407,28 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 210)
+		btn.custom_minimum_size = Vector2(240, 170)
+
+		# Margin wrapper so the card content sizes the button
+		var margin := MarginContainer.new()
+		margin.add_theme_constant_override("margin_top", 4)
+		margin.add_theme_constant_override("margin_bottom", 8)
+		margin.add_theme_constant_override("margin_left", 4)
+		margin.add_theme_constant_override("margin_right", 4)
+		margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 		var card := VBoxContainer.new()
-		card.add_theme_constant_override("separation", 4)
+		card.add_theme_constant_override("separation", 2)
 		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-		# Gold bonus banner (3rd card)
+		# Gold bonus banner (3rd card) — all cards reserve the same row height
 		var bonus_gold: int = wave.get("bonus_gold", 0)
 		if bonus_gold > 0:
 			var banner := Label.new()
 			banner.text = "+%dg BONUS" % bonus_gold
 			banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			banner.add_theme_font_size_override("font_size", 13)
+			banner.add_theme_font_size_override("font_size", 11)
 			banner.add_theme_color_override("font_color", Color(0.1, 0.1, 0.1))
 			banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var banner_bg := PanelContainer.new()
@@ -413,12 +440,28 @@ func _populate_wave_cards() -> void:
 			banner_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			banner_bg.add_child(banner)
 			card.add_child(banner_bg)
+		else:
+			# Dark grey bar matching the gold banner size so everything aligns
+			var spacer_label := Label.new()
+			spacer_label.text = " "
+			spacer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			spacer_label.add_theme_font_size_override("font_size", 11)
+			spacer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var spacer_bg := PanelContainer.new()
+			var sp_style := StyleBoxFlat.new()
+			sp_style.bg_color = Color(0.12, 0.12, 0.15)
+			sp_style.set_corner_radius_all(3)
+			sp_style.set_content_margin_all(2)
+			spacer_bg.add_theme_stylebox_override("panel", sp_style)
+			spacer_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			spacer_bg.add_child(spacer_label)
+			card.add_child(spacer_bg)
 
 		# Strategy title
 		var title := Label.new()
 		title.text = wave.name
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		title.add_theme_font_size_override("font_size", 15)
+		title.add_theme_font_size_override("font_size", 13)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(title)
 
@@ -437,7 +480,7 @@ func _populate_wave_cards() -> void:
 			if data.texture:
 				var tex := TextureRect.new()
 				tex.texture = data.texture
-				tex.custom_minimum_size = Vector2(28, 28)
+				tex.custom_minimum_size = Vector2(22, 22)
 				tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				tex.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 				tex.modulate = CLASS_COLORS.get(data.unit_class, Color.WHITE)
@@ -449,7 +492,7 @@ func _populate_wave_cards() -> void:
 		var comp := Label.new()
 		comp.text = wave.enemy_text
 		comp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		comp.add_theme_font_size_override("font_size", 12)
+		comp.add_theme_font_size_override("font_size", 11)
 		comp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(comp)
 
@@ -484,7 +527,7 @@ func _populate_wave_cards() -> void:
 		var dps_label := Label.new()
 		dps_label.text = "DPS: %.1f" % total_dps
 		dps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		dps_label.add_theme_font_size_override("font_size", 11)
+		dps_label.add_theme_font_size_override("font_size", 10)
 		dps_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
 		dps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(dps_label)
@@ -493,12 +536,13 @@ func _populate_wave_cards() -> void:
 		var summary := Label.new()
 		summary.text = "%d units (%d farms) — %s" % [wave.total_units, wave.total_farms, wave.strategy]
 		summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		summary.add_theme_font_size_override("font_size", 11)
+		summary.add_theme_font_size_override("font_size", 10)
 		summary.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(summary)
 
-		btn.add_child(card)
+		margin.add_child(card)
+		btn.add_child(margin)
 		var idx := i
 		btn.pressed.connect(func(): _on_wave_selected(idx))
 		wave_cards_container.add_child(btn)
@@ -623,16 +667,17 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 530)
-	shop_bar.add_theme_constant_override("separation", 8)
+	shop_bar.position = Vector2(30, 540)
+	shop_bar.add_theme_constant_override("separation", 5)
 	ui_layer.add_child(shop_bar)
 
 	for i in range(HERO_SHOP_SLOTS + UPGRADE_SHOP_SLOTS):
 		var btn := Button.new()
 		if i < HERO_SHOP_SLOTS:
-			btn.custom_minimum_size = Vector2(140, 90)
+			btn.custom_minimum_size = Vector2(130, 62)
 		else:
-			btn.custom_minimum_size = Vector2(120, 90)
+			btn.custom_minimum_size = Vector2(110, 62)
+		btn.add_theme_font_size_override("font_size", 11)
 		var idx := i
 		btn.pressed.connect(func(): _on_shop_card_pressed(idx))
 		shop_bar.add_child(btn)
@@ -645,27 +690,30 @@ func _build_shop_bar() -> void:
 
 	# Action buttons — appended to end of shop bar
 	action_bar = VBoxContainer.new()
-	action_bar.custom_minimum_size = Vector2(100, 0)
-	action_bar.add_theme_constant_override("separation", 2)
+	action_bar.custom_minimum_size = Vector2(90, 0)
+	action_bar.add_theme_constant_override("separation", 1)
 	shop_bar.add_child(action_bar)
 
 	reroll_button = Button.new()
 	reroll_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	reroll_button.custom_minimum_size = Vector2(0, 28)
+	reroll_button.custom_minimum_size = Vector2(0, 20)
+	reroll_button.add_theme_font_size_override("font_size", 11)
 	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	action_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
 	freeze_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	freeze_button.custom_minimum_size = Vector2(0, 28)
+	freeze_button.custom_minimum_size = Vector2(0, 20)
+	freeze_button.add_theme_font_size_override("font_size", 11)
 	freeze_button.text = "Freeze"
 	freeze_button.pressed.connect(_on_freeze_pressed)
 	action_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
 	sell_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sell_button.custom_minimum_size = Vector2(0, 28)
+	sell_button.custom_minimum_size = Vector2(0, 20)
+	sell_button.add_theme_font_size_override("font_size", 11)
 	sell_button.text = "Sell"
 	sell_button.pressed.connect(_on_sell_pressed)
 	action_bar.add_child(sell_button)
@@ -678,13 +726,15 @@ func _build_shop_bar() -> void:
 
 	buy_button = Button.new()
 	buy_button.text = "Buy"
-	buy_button.custom_minimum_size = Vector2(60, 30)
+	buy_button.custom_minimum_size = Vector2(50, 22)
+	buy_button.add_theme_font_size_override("font_size", 11)
 	buy_button.pressed.connect(_confirm_shop_purchase)
 	shop_confirm_bar.add_child(buy_button)
 
 	cancel_button = Button.new()
 	cancel_button.text = "Cancel"
-	cancel_button.custom_minimum_size = Vector2(60, 30)
+	cancel_button.custom_minimum_size = Vector2(50, 22)
+	cancel_button.add_theme_font_size_override("font_size", 11)
 	cancel_button.pressed.connect(_cancel_shop_selection)
 	shop_confirm_bar.add_child(cancel_button)
 
@@ -714,29 +764,36 @@ func _update_shop_display() -> void:
 		var btn: Button = shop_buttons[i]
 		btn.modulate = Color(1, 1, 1)
 		btn.icon = null
+		# Reset any custom style overrides
+		btn.remove_theme_stylebox_override("normal")
 		if slot.sold:
 			btn.text = "SOLD"
 			btn.disabled = true
 		elif slot.type == "hero":
 			var data: UnitData = slot.data
-			var label := "%dg [F:%d]\n\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, data.unit_name]
+			var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color.WHITE)
+			var label := "%dg [F:%d]\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, data.unit_name]
 			if _find_player_unit_by_class(data.unit_class):
-				label += "\n\nAuto: Use as EXP\n(Shift: new copy)"
+				label += "\nMerge as EXP"
 			btn.text = label
 			btn.disabled = false
-			# Hero icon and class color tint
+			# Hero icon (small, left-aligned)
 			if data.texture:
 				btn.icon = data.texture
-				btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				btn.expand_icon = true
-			var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color.WHITE)
-			btn.modulate = cls_color.lightened(0.4)
+			# Colored left border accent
+			var hero_style := StyleBoxFlat.new()
+			hero_style.bg_color = Color(0.18, 0.18, 0.22)
+			hero_style.border_color = cls_color
+			hero_style.border_width_left = 3
+			hero_style.set_corner_radius_all(3)
+			hero_style.set_content_margin_all(4)
+			btn.add_theme_stylebox_override("normal", hero_style)
 		else:
 			var upgrade: Dictionary = slot.data
 			var class_text := ""
 			if upgrade.has("class_req"):
 				class_text = "\n(%s only)" % upgrade.class_req
-			btn.text = "%dg\n\n%s\n%s\n%s%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc, class_text]
+			btn.text = "%dg\n%s\n%s\n%s%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc, class_text]
 			btn.disabled = false
 			if upgrade.rarity == "Rare":
 				btn.modulate = Color(0.85, 0.6, 1.0)
