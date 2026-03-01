@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.7.0 — Random Names & Ability Variants per Hero Class
+
+### Random Hero Names
+- Every spawned unit now receives a **random thematic name** from a pool of 6 per class
+- Names persist across rounds via squad save/restore
+- Combat log, info panel, and name labels all display the unique name
+
+### Ability Variants (3 per class, 27 total)
+Each unit is randomly assigned one of 3 ability variants when spawned:
+
+- **Warlock** — Vulnerable Curse (AoE crit vulnerability), Soul Drain (lifesteal single target), Shadow Bolt (heavy nuke)
+- **Priest** — Holy Armor (AoE heal), Divine Shield (armor to weakest ally), Purify (big heal + cleanse on lowest HP ally)
+- **Tank** — Shield Bash (armor+dmg hit), Taunt (pull nearby enemies + gain armor), Fortify (massive armor gain, rooted)
+- **Herbalist** — Magic Potions (AoE poison), Rejuvenation (AoE heal), Noxious Burst (AoE damage in 150px)
+- **Grunt** — Frenzy (attack speed buff), War Cry (all allies +3 damage), Cleave (AoE melee in 100px)
+- **Archer** — Volley (AoE reduced damage), Piercing Shot (single target, ignores armor), Marked Target (enemy takes +30% damage)
+- **Assassin** — Shadowstrike (+50% crit), Poison Blade (bonus damage buff), Vanish (+80% evasion + guaranteed crit)
+- **Summoner** — Summon Archer (spawns archer), Summon Guardian (spawns tank minion), Arcane Familiar (spawns warlock minion)
+- **Paladin** — Holy Aegis (armor restore + damage buff), Smite (heavy damage + self heal), Consecrate (AoE damage + AoE heal)
+
+### Shop Preview
+- Selecting a hero card in the shop now shows all possible ability variants for that class
+- Per-instance ability name and description shown in the unit info panel
+
+### Paladin (new in heroes table)
+- Added Paladin to the README heroes table with all 3 ability variants
+
+### Bug Fix
+- Fixed integer division in farm cost calculation for type safety
+
+---
+
 ## v0.6.0 — Color-Coded Shop, Tiered Rare/Epic Buffs, Range-Aware Movement
 
 ### Rarity Color Coding

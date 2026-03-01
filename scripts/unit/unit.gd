@@ -12,6 +12,12 @@ var xp: int = 0
 var level: int = 1
 const XP_TO_LEVEL: int = 4
 
+# Per-instance identity and ability variant
+var display_name: String = ""
+var ability_key: String = ""
+var instance_ability_name: String = ""
+var instance_ability_desc: String = ""
+
 # Tracks per-stat purchase count (for escalating cost)
 var stat_purchases: Dictionary = {}  # stat_key -> int
 
@@ -109,7 +115,7 @@ func _update_visuals() -> void:
 	_update_armor_bar()
 
 	# Name label
-	name_label.text = unit_data.unit_name
+	name_label.text = display_name if display_name != "" else unit_data.unit_name
 
 	# Scale grows with power (merges + stat purchases)
 	update_scale()
@@ -119,8 +125,8 @@ const PREMIUM_STATS: Array[String] = ["evasion", "crit_chance", "skill_proc_chan
 func get_stat_upgrade_cost(stat_key: String) -> int:
 	var purchases: int = stat_purchases.get(stat_key, 0)
 	if stat_key in PREMIUM_STATS:
-		return 2 + int(purchases / 4)
-	return 1 + int(purchases / 5)
+		return 2 + int(float(purchases) / 4.0)
+	return 1 + int(float(purchases) / 5.0)
 
 func get_max_upgrades() -> int:
 	return level + 1

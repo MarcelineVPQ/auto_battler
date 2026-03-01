@@ -132,7 +132,7 @@ var shop_buttons: Array[Button] = []
 var reroll_button: Button
 var freeze_button: Button
 var sell_button: Button
-var action_bar: HBoxContainer
+var action_bar: VBoxContainer
 
 # Shop freeze state
 var shop_frozen: bool = false
@@ -487,12 +487,11 @@ func _build_shop_bar() -> void:
 	shop_bar.add_child(sep)
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
-	# Action buttons — right panel, between Ready and hero stats
-	action_bar = HBoxContainer.new()
-	action_bar.position = Vector2(1010, 248)
-	action_bar.custom_minimum_size = Vector2(260, 0)
-	action_bar.add_theme_constant_override("separation", 4)
-	ui_layer.add_child(action_bar)
+	# Action buttons — appended to end of shop bar
+	action_bar = VBoxContainer.new()
+	action_bar.custom_minimum_size = Vector2(100, 0)
+	action_bar.add_theme_constant_override("separation", 2)
+	shop_bar.add_child(action_bar)
 
 	reroll_button = Button.new()
 	reroll_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -785,11 +784,9 @@ func _on_reroll_pressed() -> void:
 
 func _show_shop() -> void:
 	shop_bar.visible = true
-	action_bar.visible = true
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
-	action_bar.visible = false
 	shop_confirm_bar.visible = false
 
 
@@ -1045,6 +1042,10 @@ func _save_squad() -> void:
 			"level": unit.level,
 			"necromancy_stacks": unit.necromancy_stacks,
 			"primed": unit.primed,
+			"display_name": unit.display_name,
+			"ability_key": unit.ability_key,
+			"instance_ability_name": unit.instance_ability_name,
+			"instance_ability_desc": unit.instance_ability_desc,
 			"stat_purchases": unit.stat_purchases.duplicate(),
 			"applied_upgrades": saved_upgrades,
 			"stats": {
@@ -1071,6 +1072,15 @@ func _restore_squad() -> void:
 		unit.level = entry.get("level", 1)
 		unit.necromancy_stacks = entry.get("necromancy_stacks", 0)
 		unit.primed = entry.get("primed", false)
+		# Restore per-instance identity (overwrite random values from _spawn_unit)
+		if entry.has("display_name"):
+			unit.display_name = entry.display_name
+		if entry.has("ability_key"):
+			unit.ability_key = entry.ability_key
+		if entry.has("instance_ability_name"):
+			unit.instance_ability_name = entry.instance_ability_name
+		if entry.has("instance_ability_desc"):
+			unit.instance_ability_desc = entry.instance_ability_desc
 		unit.stat_purchases = entry.get("stat_purchases", {}).duplicate()
 		var saved_upgrades: Array = entry.get("applied_upgrades", [])
 		for upg in saved_upgrades:
@@ -1102,6 +1112,12 @@ func _restore_squad() -> void:
 func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2) -> Unit:
 	var unit: Unit = unit_scene.instantiate()
 	unit.setup(data, team, pos)
+	# Assign random name and ability variant
+	unit.display_name = HeroVariants.random_name(data.unit_class)
+	var variant: Dictionary = HeroVariants.random_ability(data.unit_class)
+	unit.ability_key = variant.key
+	unit.instance_ability_name = variant.name
+	unit.instance_ability_desc = variant.desc
 	board.add_unit(unit)
 	return unit
 
@@ -1394,7 +1410,8 @@ func _show_info_panel(unit: Unit) -> void:
 	# Header
 	var header := Label.new()
 	header.add_theme_font_size_override("font_size", 16)
-	var header_text := "%s\n%s  (Cost: %dg  Farms: %d)" % [unit.unit_data.unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
+	var unit_name := unit.display_name if unit.display_name != "" else unit.unit_data.unit_name
+	var header_text := "%s\n%s  (Cost: %dg  Farms: %d)" % [unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
 	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
 	header.text = header_text
 	info_panel.add_child(header)
@@ -1450,9 +1467,11 @@ func _show_info_panel(unit: Unit) -> void:
 	# Ability / Skill / Boosted
 	var extras := Label.new()
 	extras.add_theme_font_size_override("font_size", 12)
-	var text := "Ability: %s" % unit.unit_data.ability_name
-	if unit.unit_data.ability_desc != "":
-		text += "\n  %s" % unit.unit_data.ability_desc
+	var ab_name := unit.instance_ability_name if unit.instance_ability_name != "" else unit.unit_data.ability_name
+	var ab_desc := unit.instance_ability_desc if unit.instance_ability_desc != "" else unit.unit_data.ability_desc
+	var text := "Ability: %s" % ab_name
+	if ab_desc != "":
+		text += "\n  %s" % ab_desc
 	if unit.unit_data.skill_name != "":
 		text += "\nSkill: %s" % unit.unit_data.skill_name
 		if unit.unit_data.skill_desc != "":
@@ -1527,9 +1546,17 @@ func _show_shop_preview(idx: int) -> void:
 
 		var extras := Label.new()
 		extras.add_theme_font_size_override("font_size", 12)
-		var text := "Ability: %s" % data.ability_name
-		if data.ability_desc != "":
-			text += "\n  %s" % data.ability_desc
+		# Show all possible ability variants for this class
+		var variants: Array = HeroVariants.ABILITY_VARIANTS.get(data.unit_class, [])
+		var text := ""
+		if variants.size() > 0:
+			text += "Possible Abilities:"
+			for v in variants:
+				text += "\n  %s — %s" % [v.name, v.desc]
+		else:
+			text += "Ability: %s" % data.ability_name
+			if data.ability_desc != "":
+				text += "\n  %s" % data.ability_desc
 		if data.skill_name != "":
 			text += "\nSkill: %s" % data.skill_name
 			if data.skill_desc != "":
