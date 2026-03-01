@@ -2,7 +2,7 @@ extends Node2D
 
 @onready var board: Board = $Board
 @onready var combat_system: CombatSystem = $CombatSystem
-@onready var ready_button: Button = $UI/SidePanel/ReadyButton
+@onready var ready_button: Button = $UI/ReadyButton
 @onready var result_label: Label = $UI/ResultLabel
 @onready var round_label: Label = $UI/TopBar/RoundLabel
 @onready var lives_label: Label = $UI/SidePanel/LivesLabel
@@ -165,7 +165,7 @@ var shop_buttons: Array[Button] = []
 var reroll_button: Button
 var freeze_button: Button
 var sell_button: Button
-var action_bar: VBoxContainer
+var action_bar: HBoxContainer
 
 # Shop freeze state
 var shop_frozen: bool = false
@@ -425,7 +425,7 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 0)
+		btn.custom_minimum_size = Vector2(240, 170)
 
 		# Margin wrapper so the card content sizes the button
 		var margin := MarginContainer.new()
@@ -685,16 +685,16 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 540)
+	shop_bar.position = Vector2(30, 555)
 	shop_bar.add_theme_constant_override("separation", 5)
 	ui_layer.add_child(shop_bar)
 
 	for i in range(HERO_SHOP_SLOTS + UPGRADE_SHOP_SLOTS):
 		var btn := Button.new()
 		if i < HERO_SHOP_SLOTS:
-			btn.custom_minimum_size = Vector2(130, 62)
+			btn.custom_minimum_size = Vector2(130, 42)
 		else:
-			btn.custom_minimum_size = Vector2(110, 62)
+			btn.custom_minimum_size = Vector2(110, 42)
 		btn.add_theme_font_size_override("font_size", 11)
 		var idx := i
 		btn.pressed.connect(func(): _on_shop_card_pressed(idx))
@@ -706,32 +706,28 @@ func _build_shop_bar() -> void:
 	shop_bar.add_child(sep)
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
-	# Action buttons — appended to end of shop bar
-	action_bar = VBoxContainer.new()
-	action_bar.custom_minimum_size = Vector2(90, 0)
-	action_bar.add_theme_constant_override("separation", 1)
+	# Action buttons — side by side row
+	action_bar = HBoxContainer.new()
+	action_bar.add_theme_constant_override("separation", 3)
 	shop_bar.add_child(action_bar)
 
 	reroll_button = Button.new()
-	reroll_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	reroll_button.custom_minimum_size = Vector2(0, 20)
-	reroll_button.add_theme_font_size_override("font_size", 11)
+	reroll_button.custom_minimum_size = Vector2(0, 28)
+	reroll_button.add_theme_font_size_override("font_size", 10)
 	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	action_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
-	freeze_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	freeze_button.custom_minimum_size = Vector2(0, 20)
-	freeze_button.add_theme_font_size_override("font_size", 11)
+	freeze_button.custom_minimum_size = Vector2(0, 28)
+	freeze_button.add_theme_font_size_override("font_size", 10)
 	freeze_button.text = "Freeze"
 	freeze_button.pressed.connect(_on_freeze_pressed)
 	action_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
-	sell_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sell_button.custom_minimum_size = Vector2(0, 20)
-	sell_button.add_theme_font_size_override("font_size", 11)
+	sell_button.custom_minimum_size = Vector2(0, 28)
+	sell_button.add_theme_font_size_override("font_size", 10)
 	sell_button.text = "Sell"
 	sell_button.pressed.connect(_on_sell_pressed)
 	action_bar.add_child(sell_button)
@@ -1754,6 +1750,7 @@ func _show_info_panel(unit: Unit) -> void:
 	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
 	header.text = header_text
 	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_panel.add_child(header)
 
 	info_panel.add_child(HSeparator.new())
@@ -1813,6 +1810,7 @@ func _show_info_panel(unit: Unit) -> void:
 		else:
 			upg_lbl.text = "%s — %s" % [upg.name, upg.desc]
 		upg_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		upg_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(upg_lbl)
 		info_panel.add_child(row)
 
@@ -1834,6 +1832,7 @@ func _show_info_panel(unit: Unit) -> void:
 		text += "\nBoosted: %s" % ", ".join(unit.unit_data.boosted_stats)
 	extras.text = text
 	extras.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	extras.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_panel.add_child(extras)
 
 func _add_stat_row(unit: Unit, stat_key: String, label_text: String, value_text: String, can_buy: bool, increment: float) -> void:
@@ -1885,6 +1884,7 @@ func _show_shop_preview(idx: int) -> void:
 		if merge_target:
 			header.text += "\nAuto-merge into existing unit"
 		header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info_panel.add_child(header)
 
 		info_panel.add_child(HSeparator.new())
@@ -1921,6 +1921,7 @@ func _show_shop_preview(idx: int) -> void:
 			text += "\nBoosted: %s" % ", ".join(data.boosted_stats)
 		extras.text = text
 		extras.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		extras.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info_panel.add_child(extras)
 	else:
 		var upgrade: Dictionary = slot.data
@@ -1928,6 +1929,7 @@ func _show_shop_preview(idx: int) -> void:
 		header.add_theme_font_size_override("font_size", 16)
 		header.text = "%s\n%s  (Cost: %dg)" % [upgrade.name, upgrade.rarity, upgrade.cost]
 		header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info_panel.add_child(header)
 
 		info_panel.add_child(HSeparator.new())
@@ -1939,6 +1941,7 @@ func _show_shop_preview(idx: int) -> void:
 			desc_text += "\nRequires: %s" % upgrade.class_req
 		desc.text = desc_text
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info_panel.add_child(desc)
 
 func _hide_info_panel() -> void:
