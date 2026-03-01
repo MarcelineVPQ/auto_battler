@@ -1,18 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Priest: Ankh/holy cross with halo - healer/support -->
-  <circle cx="64" cy="64" r="60" fill="#FFD700" stroke="#FFF176" stroke-width="4" opacity="0.2"/>
-  <circle cx="64" cy="64" r="60" fill="none" stroke="#FFD700" stroke-width="4"/>
-  <!-- Halo ring -->
-  <ellipse cx="64" cy="28" rx="22" ry="8" fill="none" stroke="#FFD700" stroke-width="3" opacity="0.8"/>
-  <!-- Cross vertical -->
-  <rect x="57" y="32" width="14" height="70" rx="3" fill="#FFD700"/>
-  <!-- Cross horizontal -->
-  <rect x="38" y="52" width="52" height="14" rx="3" fill="#FFD700"/>
-  <!-- Inner glow lines -->
-  <rect x="60" y="36" width="8" height="62" rx="2" fill="#FFF9C4" opacity="0.5"/>
-  <rect x="42" y="55" width="44" height="8" rx="2" fill="#FFF9C4" opacity="0.5"/>
-  <!-- Light rays -->
-  <line x1="64" y1="10" x2="64" y2="18" stroke="#FFD700" stroke-width="2" opacity="0.5"/>
-  <line x1="44" y1="16" x2="48" y2="22" stroke="#FFD700" stroke-width="2" opacity="0.5"/>
-  <line x1="84" y1="16" x2="80" y2="22" stroke="#FFD700" stroke-width="2" opacity="0.5"/>
+  <!-- Priest: Glowing staff with ankh top - divine healer -->
+  <circle cx="64" cy="64" r="60" fill="#2A2010" stroke="#FFD700" stroke-width="4"/>
+  <!-- Staff shaft -->
+  <rect x="60" y="38" width="8" height="75" rx="2" fill="#CD853F"/>
+  <line x1="61" y1="55" x2="67" y2="55" stroke="#FFD700" stroke-width="2"/>
+  <line x1="61" y1="85" x2="67" y2="85" stroke="#FFD700" stroke-width="2"/>
+  <!-- Ankh loop at top -->
+  <circle cx="64" cy="26" r="14" fill="none" stroke="#FFD700" stroke-width="5"/>
+  <circle cx="64" cy="26" r="7" fill="#FFFACD" opacity="0.3"/>
+  <!-- Cross arms -->
+  <rect x="44" y="38" width="40" height="8" rx="2" fill="#FFD700"/>
+  <!-- Healing glow -->
+  <circle cx="64" cy="26" r="20" fill="#FFD700" opacity="0.1"/>
+  <!-- Sparkles around ankh -->
+  <circle cx="42" cy="18" r="2" fill="#FFF9C4" opacity="0.7"/>
+  <circle cx="86" cy="22" r="2" fill="#FFF9C4" opacity="0.6"/>
+  <circle cx="44" cy="36" r="2" fill="#FFF9C4" opacity="0.5"/>
+  <circle cx="84" cy="36" r="2" fill="#FFF9C4" opacity="0.6"/>
 </svg>

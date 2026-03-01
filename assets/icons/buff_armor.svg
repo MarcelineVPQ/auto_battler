@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Armor: Shield -->
+  <path d="M 32 6 L 56 16 L 56 36 Q 56 54 32 60 Q 8 54 8 36 L 8 16 Z"
+        fill="#4682B4" stroke="#87CEEB" stroke-width="2"/>
+  <path d="M 32 12 L 50 20 L 50 34 Q 50 48 32 54 Q 14 48 14 34 L 14 20 Z"
+        fill="none" stroke="#87CEEB" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="32" cy="34" r="8" fill="#87CEEB" opacity="0.3"/>
+</svg>

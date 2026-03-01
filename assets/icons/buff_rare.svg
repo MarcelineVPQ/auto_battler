@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Rare/Special: Glowing gem -->
+  <polygon points="32,6 52,22 46,56 18,56 12,22"
+           fill="#7E57C2" stroke="#B39DDB" stroke-width="2"/>
+  <polygon points="32,14 46,26 42,50 22,50 18,26"
+           fill="none" stroke="#CE93D8" stroke-width="1" opacity="0.5"/>
+  <!-- Facets -->
+  <line x1="32" y1="6" x2="32" y2="56" stroke="#B39DDB" stroke-width="1" opacity="0.4"/>
+  <line x1="12" y1="22" x2="52" y2="22" stroke="#B39DDB" stroke-width="1" opacity="0.4"/>
+  <!-- Shine -->
+  <polygon points="32,14 18,26 22,50 32,36" fill="#B39DDB" opacity="0.25"/>
+  <circle cx="24" cy="22" r="3" fill="#FFFFFF" opacity="0.5"/>
+</svg>

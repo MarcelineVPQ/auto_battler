@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://cskel0000010a"]
 
 [ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/icons/skeleton_archer.svg" id="2"]
+[ext_resource type="Texture2D" uid="uid://cc11ypattvbxi" path="res://assets/icons/skeleton_archer.svg" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -22,6 +22,7 @@ skill_proc_chance = 0.0
 max_mana = 100
 mana_cost_per_attack = 0
 mana_regen_per_second = 0.0
+hp_regen_per_second = 0.0
 ability_name = "Bone Shot"
 ability_desc = "Fires spectral arrows at enemies"
 ability_cooldown = 99.0

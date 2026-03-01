@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Range: Arrow flying far -->
+  <line x1="8" y1="32" x2="48" y2="32" stroke="#4CAF50" stroke-width="3" stroke-linecap="round"/>
+  <polygon points="48,24 48,40 60,32" fill="#4CAF50"/>
+  <!-- Distance marks -->
+  <line x1="14" y1="44" x2="14" y2="50" stroke="#81C784" stroke-width="2" opacity="0.5"/>
+  <line x1="28" y1="44" x2="28" y2="50" stroke="#81C784" stroke-width="2" opacity="0.7"/>
+  <line x1="42" y1="44" x2="42" y2="50" stroke="#81C784" stroke-width="2" opacity="0.9"/>
+</svg>

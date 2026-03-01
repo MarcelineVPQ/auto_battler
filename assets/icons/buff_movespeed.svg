@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Move Speed: Winged boot -->
+  <path d="M 20 46 L 20 22 Q 20 14 30 14 L 42 14 Q 50 14 50 22 L 50 46 Q 50 54 38 54 L 14 54 Q 10 54 12 48"
+        fill="#FFB74D" stroke="#F57C00" stroke-width="2"/>
+  <!-- Wing -->
+  <path d="M 50 22 Q 58 10 56 4" fill="none" stroke="#FFF9C4" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 50 28 Q 60 18 60 12" fill="none" stroke="#FFF9C4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 50 34 Q 62 26 62 20" fill="none" stroke="#FFF9C4" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

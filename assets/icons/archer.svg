@@ -1,15 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <!-- Archer: Bow and arrow - ranged DPS -->
-  <circle cx="64" cy="64" r="60" fill="#2E5E1E" stroke="#4CAF50" stroke-width="4"/>
+  <circle cx="64" cy="64" r="60" fill="#1A3A1A" stroke="#4CAF50" stroke-width="4"/>
   <!-- Bow arc -->
-  <path d="M 50 20 Q 25 64 50 108" fill="none" stroke="#CD853F" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 48 18 Q 20 64 48 110" fill="none" stroke="#CD853F" stroke-width="7" stroke-linecap="round"/>
   <!-- Bowstring -->
-  <line x1="50" y1="20" x2="50" y2="108" stroke="#F5F5DC" stroke-width="2"/>
+  <line x1="48" y1="18" x2="48" y2="110" stroke="#F5F5DC" stroke-width="2"/>
   <!-- Arrow shaft -->
-  <line x1="50" y1="64" x2="105" y2="64" stroke="#CD853F" stroke-width="4" stroke-linecap="round"/>
+  <line x1="48" y1="64" x2="108" y2="64" stroke="#CD853F" stroke-width="4" stroke-linecap="round"/>
   <!-- Arrowhead -->
-  <polygon points="105,54 105,74 118,64" fill="#C0C0C0"/>
+  <polygon points="108,54 108,74 122,64" fill="#C0C0C0"/>
   <!-- Arrow fletching -->
-  <polygon points="52,58 42,52 52,64" fill="#E53935" opacity="0.9"/>
-  <polygon points="52,70 42,76 52,64" fill="#E53935" opacity="0.9"/>
+  <polygon points="50,58 40,50 50,64" fill="#E53935" opacity="0.9"/>
+  <polygon points="50,70 40,78 50,64" fill="#E53935" opacity="0.9"/>
+  <!-- String pull detail -->
+  <line x1="48" y1="64" x2="56" y2="64" stroke="#F5F5DC" stroke-width="2" opacity="0.5"/>
 </svg>

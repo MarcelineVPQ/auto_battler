@@ -1,6 +1,13 @@
 extends Node
 
 const SETTINGS_PATH: String = "user://settings.cfg"
+const RESOLUTIONS: Array[Vector2i] = [
+	Vector2i(1280, 720),
+	Vector2i(1600, 900),
+	Vector2i(1920, 1080),
+	Vector2i(2560, 1440),
+	Vector2i(3840, 2160),
+]
 
 var master_volume: float = 1.0
 var sfx_volume: float = 1.0
@@ -8,6 +15,7 @@ var fullscreen: bool = false
 var vsync: bool = true
 var screen_shake: bool = true
 var show_damage_numbers: bool = true
+var resolution: Vector2i = Vector2i(1280, 720)
 
 func _ready() -> void:
 	load_settings()
@@ -42,6 +50,11 @@ func set_show_damage_numbers(enabled: bool) -> void:
 	show_damage_numbers = enabled
 	save_settings()
 
+func set_resolution(res: Vector2i) -> void:
+	resolution = res
+	_apply_graphics()
+	save_settings()
+
 func _apply_audio() -> void:
 	var master_idx := AudioServer.get_bus_index("Master")
 	if master_idx >= 0:
@@ -57,6 +70,10 @@ func _apply_graphics() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		DisplayServer.window_set_size(resolution)
+		var screen_size := DisplayServer.screen_get_size()
+		var win_pos := (screen_size - resolution) / 2
+		DisplayServer.window_set_position(win_pos)
 	if vsync:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 	else:
@@ -68,6 +85,8 @@ func save_settings() -> void:
 	config.set_value("audio", "sfx_volume", sfx_volume)
 	config.set_value("graphics", "fullscreen", fullscreen)
 	config.set_value("graphics", "vsync", vsync)
+	config.set_value("graphics", "resolution_x", resolution.x)
+	config.set_value("graphics", "resolution_y", resolution.y)
 	config.set_value("auxiliary", "screen_shake", screen_shake)
 	config.set_value("auxiliary", "show_damage_numbers", show_damage_numbers)
 	config.save(SETTINGS_PATH)
@@ -80,5 +99,7 @@ func load_settings() -> void:
 	sfx_volume = config.get_value("audio", "sfx_volume", 1.0)
 	fullscreen = config.get_value("graphics", "fullscreen", false)
 	vsync = config.get_value("graphics", "vsync", true)
+	resolution.x = config.get_value("graphics", "resolution_x", 1280)
+	resolution.y = config.get_value("graphics", "resolution_y", 720)
 	screen_shake = config.get_value("auxiliary", "screen_shake", true)
 	show_damage_numbers = config.get_value("auxiliary", "show_damage_numbers", true)

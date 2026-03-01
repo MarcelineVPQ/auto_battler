@@ -1,15 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Grunt: Crossed swords - aggressive melee fighter -->
-  <circle cx="64" cy="64" r="60" fill="#8B4513" stroke="#D2691E" stroke-width="4"/>
-  <!-- Left sword -->
-  <line x1="30" y1="95" x2="85" y2="25" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-  <line x1="78" y1="32" x2="95" y2="22" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
-  <line x1="82" y1="22" x2="95" y2="35" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
-  <!-- Right sword -->
-  <line x1="98" y1="95" x2="43" y2="25" stroke="#E0E0E0" stroke-width="8" stroke-linecap="round"/>
-  <line x1="50" y1="32" x2="33" y2="22" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
-  <line x1="46" y1="22" x2="33" y2="35" stroke="#E0E0E0" stroke-width="6" stroke-linecap="round"/>
-  <!-- Handle wraps -->
-  <line x1="38" y1="85" x2="45" y2="75" stroke="#CD853F" stroke-width="6" stroke-linecap="round"/>
-  <line x1="90" y1="85" x2="83" y2="75" stroke="#CD853F" stroke-width="6" stroke-linecap="round"/>
+  <!-- Grunt: Battle axe - aggressive melee fighter -->
+  <circle cx="64" cy="64" r="60" fill="#5D2906" stroke="#D2691E" stroke-width="4"/>
+  <!-- Axe handle -->
+  <rect x="60" y="20" width="8" height="95" rx="2" fill="#8B6914"/>
+  <line x1="61" y1="45" x2="67" y2="45" stroke="#CD853F" stroke-width="2"/>
+  <line x1="61" y1="70" x2="67" y2="70" stroke="#CD853F" stroke-width="2"/>
+  <!-- Axe head left -->
+  <path d="M 60 25 Q 25 35 22 55 Q 25 75 60 70 Z"
+        fill="#C0C0C0" stroke="#808080" stroke-width="2"/>
+  <!-- Axe head right -->
+  <path d="M 68 25 Q 103 35 106 55 Q 103 75 68 70 Z"
+        fill="#C0C0C0" stroke="#808080" stroke-width="2"/>
+  <!-- Axe edge shine -->
+  <path d="M 58 30 Q 32 40 30 55" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  <path d="M 70 30 Q 96 40 98 55" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  <!-- Blood splatter -->
+  <circle cx="30" cy="48" r="3" fill="#D32F2F" opacity="0.6"/>
+  <circle cx="96" cy="62" r="2.5" fill="#D32F2F" opacity="0.5"/>
 </svg>

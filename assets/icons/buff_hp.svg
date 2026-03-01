@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- HP: Heart -->
+  <path d="M 32 54 Q 8 36 8 20 Q 8 8 20 8 Q 28 8 32 16 Q 36 8 44 8 Q 56 8 56 20 Q 56 36 32 54 Z"
+        fill="#E53935" stroke="#C62828" stroke-width="2"/>
+  <path d="M 32 48 Q 14 34 14 22 Q 14 14 22 14 Q 28 14 32 20"
+        fill="#EF5350" opacity="0.4"/>
+</svg>

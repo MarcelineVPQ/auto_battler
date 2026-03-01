@@ -1,13 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <!-- Tank: Heavy shield - defensive frontliner -->
+  <!-- Tank: Helm with visor - heavy armored defender -->
   <circle cx="64" cy="64" r="60" fill="#1B3A5C" stroke="#4682B4" stroke-width="4"/>
-  <!-- Shield body -->
-  <path d="M 64 18 L 98 35 L 98 70 Q 98 100 64 115 Q 30 100 30 70 L 30 35 Z"
-        fill="#4682B4" stroke="#87CEEB" stroke-width="3"/>
-  <!-- Shield inner border -->
-  <path d="M 64 28 L 90 42 L 90 68 Q 90 93 64 105 Q 38 93 38 68 L 38 42 Z"
-        fill="none" stroke="#87CEEB" stroke-width="2" opacity="0.6"/>
-  <!-- Shield emblem - cross -->
-  <rect x="58" y="40" width="12" height="50" rx="2" fill="#1B3A5C" opacity="0.7"/>
-  <rect x="42" y="56" width="44" height="12" rx="2" fill="#1B3A5C" opacity="0.7"/>
+  <!-- Helm dome -->
+  <path d="M 34 68 Q 34 22 64 18 Q 94 22 94 68" fill="#6B7B8D" stroke="#87CEEB" stroke-width="2"/>
+  <!-- Visor slit -->
+  <rect x="38" y="56" width="52" height="10" rx="2" fill="#1B3A5C"/>
+  <!-- Eye glow in visor -->
+  <circle cx="50" cy="61" r="3" fill="#87CEEB" opacity="0.8"/>
+  <circle cx="78" cy="61" r="3" fill="#87CEEB" opacity="0.8"/>
+  <!-- Helm nose guard -->
+  <rect x="61" y="48" width="6" height="28" rx="1" fill="#7B8B9D"/>
+  <!-- Chin guard -->
+  <path d="M 38 68 L 38 88 Q 38 105 64 108 Q 90 105 90 88 L 90 68" fill="#5A6A7D" stroke="#87CEEB" stroke-width="2"/>
+  <!-- Cheek rivets -->
+  <circle cx="42" cy="78" r="3" fill="#87CEEB" opacity="0.5"/>
+  <circle cx="86" cy="78" r="3" fill="#87CEEB" opacity="0.5"/>
 </svg>

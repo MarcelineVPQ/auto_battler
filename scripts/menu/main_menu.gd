@@ -66,7 +66,7 @@ func _build_settings_overlay() -> void:
 	settings_overlay.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(420, 400)
+	panel.custom_minimum_size = Vector2(420, 440)
 	center.add_child(panel)
 
 	var margin := MarginContainer.new()
@@ -113,6 +113,7 @@ func _build_settings_overlay() -> void:
 	vbox.add_child(_create_checkbox("VSync", SettingsManager.vsync, func(toggled: bool):
 		SettingsManager.set_vsync(toggled)
 	))
+	vbox.add_child(_create_resolution_picker())
 
 	# ── Auxiliary Section ──
 	var aux_label := Label.new()
@@ -163,6 +164,31 @@ func _create_slider(label_text: String, initial: float, on_change: Callable) -> 
 	slider.value_changed.connect(func(val: float):
 		value_label.text = str(int(val * 100))
 	)
+
+	return hbox
+
+func _create_resolution_picker() -> HBoxContainer:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+
+	var label := Label.new()
+	label.text = "Resolution"
+	label.custom_minimum_size = Vector2(140, 0)
+	hbox.add_child(label)
+
+	var option := OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var current_idx := 0
+	for i in SettingsManager.RESOLUTIONS.size():
+		var res: Vector2i = SettingsManager.RESOLUTIONS[i]
+		option.add_item("%dx%d" % [res.x, res.y])
+		if res == SettingsManager.resolution:
+			current_idx = i
+	option.selected = current_idx
+	option.item_selected.connect(func(idx: int):
+		SettingsManager.set_resolution(SettingsManager.RESOLUTIONS[idx])
+	)
+	hbox.add_child(option)
 
 	return hbox
 
