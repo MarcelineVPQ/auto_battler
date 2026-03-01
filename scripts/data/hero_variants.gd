@@ -10,6 +10,7 @@ const NAME_POOLS: Dictionary = {
 	"Assassin": ["Shade", "Whisper", "Nyx", "Veil", "Dusk", "Sable"],
 	"Summoner": ["Nyx", "Elara", "Omen", "Riven", "Azura", "Conjura"],
 	"Paladin": ["Cedric", "Aldric", "Gavriel", "Lucan", "Seraphel", "Orin"],
+	"SkeletonArcher": ["Rattles", "Marrow", "Clatters", "Dustbone", "Grimjaw", "Hollows"],
 }
 
 const ABILITY_VARIANTS: Dictionary = {
@@ -49,14 +50,17 @@ const ABILITY_VARIANTS: Dictionary = {
 		{"key": "assassin_vanish", "name": "Vanish", "desc": "+80% evasion for 3 seconds + guaranteed crit on next hit"},
 	],
 	"Summoner": [
-		{"key": "summoner_archer", "name": "Summon Archer", "desc": "Spawn an archer minion"},
-		{"key": "summoner_guardian", "name": "Summon Guardian", "desc": "Spawn a tank minion (high HP, low damage)"},
-		{"key": "summoner_familiar", "name": "Arcane Familiar", "desc": "Spawn a mage minion that deals AoE damage"},
+		{"key": "summoner_archer", "name": "Raise Skeleton", "desc": "Summon a skeleton archer minion"},
+		{"key": "summoner_guardian", "name": "Raise Guardian", "desc": "Summon a fortified skeleton (+HP, +armor per round)"},
+		{"key": "summoner_familiar", "name": "Raise Revenant", "desc": "Summon a deadly skeleton (+dmg, +crit per round)"},
 	],
 	"Paladin": [
 		{"key": "paladin_aegis", "name": "Holy Aegis", "desc": "Restore armor + damage buff to allies"},
 		{"key": "paladin_smite", "name": "Smite", "desc": "Deal (dmg + armor) x2.0 to nearest enemy, heal self for 50%"},
 		{"key": "paladin_consecrate", "name": "Consecrate", "desc": "Deal dmg x1.5 to enemies within 120px, heal allies in range"},
+	],
+	"SkeletonArcher": [
+		{"key": "skeleton_basic", "name": "Bone Shot", "desc": "Fires spectral arrows at enemies"},
 	],
 }
 

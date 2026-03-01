@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Skeleton Archer: Skull with bone bow and spectral arrow -->
+  <circle cx="64" cy="64" r="60" fill="#1A2A2A" stroke="#5CC0DE" stroke-width="4"/>
+  <!-- Skull shape -->
+  <ellipse cx="64" cy="52" rx="22" ry="24" fill="#D4C9A8" stroke="#A09070" stroke-width="2"/>
+  <!-- Jaw -->
+  <path d="M 48 60 Q 50 80 64 82 Q 78 80 80 60" fill="#C4B998" stroke="#A09070" stroke-width="2"/>
+  <!-- Teeth -->
+  <line x1="52" y1="68" x2="52" y2="74" stroke="#F5F0E0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="58" y1="68" x2="58" y2="76" stroke="#F5F0E0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="64" y1="68" x2="64" y2="76" stroke="#F5F0E0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="70" y1="68" x2="70" y2="76" stroke="#F5F0E0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="76" y1="68" x2="76" y2="74" stroke="#F5F0E0" stroke-width="2" stroke-linecap="round"/>
+  <!-- Eye sockets -->
+  <ellipse cx="54" cy="48" rx="8" ry="9" fill="#1A2A2A"/>
+  <ellipse cx="74" cy="48" rx="8" ry="9" fill="#1A2A2A"/>
+  <!-- Glowing cyan eyes -->
+  <ellipse cx="54" cy="48" rx="5" ry="5" fill="#00E5FF" opacity="0.9"/>
+  <ellipse cx="74" cy="48" rx="5" ry="5" fill="#00E5FF" opacity="0.9"/>
+  <!-- Eye glow -->
+  <ellipse cx="54" cy="48" rx="8" ry="8" fill="#00E5FF" opacity="0.2"/>
+  <ellipse cx="74" cy="48" rx="8" ry="8" fill="#00E5FF" opacity="0.2"/>
+  <!-- Nose hole -->
+  <polygon points="62,55 66,55 64,60" fill="#1A2A2A"/>
+  <!-- Bone bow (behind skull, left side) -->
+  <path d="M 18 30 Q 6 64 18 98" fill="none" stroke="#D4C9A8" stroke-width="5" stroke-linecap="round"/>
+  <!-- Bow string -->
+  <line x1="18" y1="30" x2="18" y2="98" stroke="#A0D8EF" stroke-width="1.5" opacity="0.7"/>
+  <!-- Spectral arrow (right side) -->
+  <line x1="30" y1="100" x2="105" y2="100" stroke="#A0D8EF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <!-- Spectral arrowhead -->
+  <polygon points="105,93 105,107 120,100" fill="#00E5FF" opacity="0.8"/>
+  <!-- Arrow glow -->
+  <line x1="30" y1="100" x2="105" y2="100" stroke="#00E5FF" stroke-width="1" opacity="0.4"/>
+</svg>

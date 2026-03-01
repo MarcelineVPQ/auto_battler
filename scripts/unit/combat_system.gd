@@ -16,6 +16,7 @@ var survival_times: Dictionary = {}  # display_name -> seconds survived
 var archer_data: UnitData = preload("res://resources/units/archer.tres")
 var tank_data: UnitData = preload("res://resources/units/tank.tres")
 var warlock_data: UnitData = preload("res://resources/units/warlock.tres")
+var skeleton_archer_data: UnitData = preload("res://resources/units/skeleton_archer.tres")
 
 func setup(b: Board) -> void:
 	board = b
@@ -102,6 +103,23 @@ func _process_tick() -> void:
 			)
 			unit.health_bar.value = unit.current_hp
 
+		# Corrosive DoT — damages armor first, remainder hits HP
+		if unit.corrosive_dot > 0:
+			var dot_dmg := unit.corrosive_dot
+			if unit.armor > 0:
+				var absorbed := mini(unit.armor, dot_dmg)
+				unit.armor -= absorbed
+				dot_dmg -= absorbed
+				unit._update_armor_bar()
+			if dot_dmg > 0:
+				unit.current_hp -= dot_dmg
+				unit.current_hp = maxi(unit.current_hp, 0)
+				unit.health_bar.value = unit.current_hp
+			if unit.current_hp <= 0:
+				unit.die()
+				board.remove_unit(unit)
+				continue
+
 		# Ability trigger: when mana is full, fire ability and reset
 		if unit.current_mana >= unit.max_mana:
 			_trigger_ability(unit)
@@ -124,14 +142,14 @@ func _process_tick() -> void:
 				var s_name := unit.display_name if unit.display_name != "" else unit.unit_data.unit_name
 				match unit.ability_key:
 					"summoner_guardian":
-						summon_requested.emit(tank_data, unit.team, unit.position + offset, unit)
-						combat_event.emit("[color=%s]%s summons a Guardian[/color]" % [team_tag, s_name])
+						summon_requested.emit(skeleton_archer_data, unit.team, unit.position + offset, unit)
+						combat_event.emit("[color=%s]%s raises a Skeleton Guardian[/color]" % [team_tag, s_name])
 					"summoner_familiar":
-						summon_requested.emit(warlock_data, unit.team, unit.position + offset, unit)
-						combat_event.emit("[color=%s]%s summons an Arcane Familiar[/color]" % [team_tag, s_name])
+						summon_requested.emit(skeleton_archer_data, unit.team, unit.position + offset, unit)
+						combat_event.emit("[color=%s]%s raises a Revenant[/color]" % [team_tag, s_name])
 					_:
-						summon_requested.emit(archer_data, unit.team, unit.position + offset, unit)
-						combat_event.emit("[color=%s]%s summons an Archer[/color]" % [team_tag, s_name])
+						summon_requested.emit(skeleton_archer_data, unit.team, unit.position + offset, unit)
+						combat_event.emit("[color=%s]%s raises a Skeleton Archer[/color]" % [team_tag, s_name])
 				AudioManager.play("summon")
 			continue
 
@@ -146,7 +164,30 @@ func _process_tick() -> void:
 			if move_dist > 0:
 				unit.move_toward_target(target.position, move_dist)
 
+	# Push overlapping units apart
+	_separate_units(living)
+
 	tick_completed.emit()
+
+func _separate_units(units: Array[Unit]) -> void:
+	const MIN_DIST := 32.0
+	for i in range(units.size()):
+		if units[i].is_dead:
+			continue
+		for j in range(i + 1, units.size()):
+			if units[j].is_dead:
+				continue
+			var diff := units[i].position - units[j].position
+			var dist := diff.length()
+			if dist < MIN_DIST and dist > 0.01:
+				var push := diff.normalized() * (MIN_DIST - dist) * 0.5
+				units[i].position += push
+				units[j].position -= push
+			elif dist < 0.01:
+				# Exactly overlapping — push apart randomly
+				var nudge := Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized() * MIN_DIST * 0.5
+				units[i].position += nudge
+				units[j].position -= nudge
 
 func _attack(attacker: Unit, target: Unit) -> void:
 	attacker.reset_attack_cooldown()
@@ -182,6 +223,10 @@ func _attack(attacker: Unit, target: Unit) -> void:
 		combat_event.emit("[color=%s]%s hits %s for %d dmg[/color]" % [atk_tag, a_name, t_name, result.damage])
 		AudioManager.play("hit", -8.0)
 
+	# Apply corrosive stacks on hit
+	if result.hit and attacker.corrosive_power > 0:
+		target.corrosive_dot += attacker.corrosive_power
+
 	if target.is_dead:
 		combat_event.emit("[color=%s]%s kills %s[/color]" % [atk_tag, a_name, t_name])
 		AudioManager.play("death")
@@ -201,6 +246,7 @@ func _attack(attacker: Unit, target: Unit) -> void:
 # Class-to-effect mapping
 const PROJECTILE_MAP: Dictionary = {
 	"Archer": "arrow",
+	"SkeletonArcher": "arrow",
 	"Warlock": "magic",
 	"Priest": "holy",
 	"Herbalist": "poison",

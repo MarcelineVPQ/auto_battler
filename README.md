@@ -25,7 +25,7 @@ Each hero spawns with a **random thematic name** and one of **3 ability variants
 | Archer | 2g | Long-range DPS | Volley, Piercing Shot, Marked Target |
 | Herbalist | 3g | Ranged support | Magic Potions, Rejuvenation, Noxious Burst |
 | Assassin | 3g | Glass cannon | Shadowstrike, Poison Blade, Vanish |
-| Summoner | 4g | Spawns minions | Summon Archer, Summon Guardian, Arcane Familiar |
+| Summoner | 4g | Spawns minions | Raise Skeleton, Raise Guardian, Raise Revenant |
 | Paladin | 4g | Holy frontline | Holy Aegis, Smite, Consecrate |
 
 ## Key Mechanics

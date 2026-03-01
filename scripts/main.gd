@@ -15,6 +15,23 @@ extends Node2D
 
 var unit_scene: PackedScene = preload("res://scenes/unit/unit.tscn")
 
+# Buff icon textures keyed by stat
+const BUFF_ICONS: Dictionary = {
+	"damage": preload("res://assets/icons/buff_damage.svg"),
+	"max_hp": preload("res://assets/icons/buff_hp.svg"),
+	"armor": preload("res://assets/icons/buff_armor.svg"),
+	"attacks_per_second": preload("res://assets/icons/buff_speed.svg"),
+	"crit_chance": preload("res://assets/icons/buff_crit.svg"),
+	"evasion": preload("res://assets/icons/buff_evasion.svg"),
+	"attack_range": preload("res://assets/icons/buff_range.svg"),
+	"move_speed": preload("res://assets/icons/buff_movespeed.svg"),
+	"max_mana": preload("res://assets/icons/buff_mana.svg"),
+	"skill_proc_chance": preload("res://assets/icons/buff_skill.svg"),
+	"primed": preload("res://assets/icons/buff_primed.svg"),
+	"_rare": preload("res://assets/icons/buff_rare.svg"),
+	"_epic": preload("res://assets/icons/buff_epic.svg"),
+}
+
 # Class color palette for UI cards
 const CLASS_COLORS: Dictionary = {
 	"Grunt": Color(0.85, 0.45, 0.25),
@@ -26,6 +43,7 @@ const CLASS_COLORS: Dictionary = {
 	"Herbalist": Color(0.3, 0.8, 0.45),
 	"Summoner": Color(0.3, 0.7, 0.85),
 	"Paladin": Color(1.0, 0.8, 0.3),
+	"SkeletonArcher": Color(0.36, 0.75, 0.92),
 }
 
 # Hero data pool
@@ -44,7 +62,7 @@ var hero_pool: Array[UnitData] = [
 # Upgrade definitions
 var upgrade_pool: Array[Dictionary] = [
 	# ── Cheap (2-3g) ──
-	{"name": "Corrosive", "cost": 2, "rarity": "Normal", "desc": "+2 damage", "stat": "damage", "amount": 2},
+	{"name": "Corrosive", "cost": 2, "rarity": "Normal", "desc": "+2 corrosive DoT (armor then HP)", "stat": "corrosive", "amount": 2},
 	{"name": "Exploit Weakness", "cost": 2, "rarity": "Normal", "desc": "+3 damage", "stat": "damage", "amount": 3},
 	{"name": "Toughness", "cost": 2, "rarity": "Normal", "desc": "+20 max HP", "stat": "max_hp", "amount": 20},
 	{"name": "Swift Strikes", "cost": 2, "rarity": "Normal", "desc": "+0.1 atk/s", "stat": "attacks_per_second", "amount": 0.1},
@@ -407,7 +425,7 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 170)
+		btn.custom_minimum_size = Vector2(240, 0)
 
 		# Margin wrapper so the card content sizes the button
 		var margin := MarginContainer.new()
@@ -795,10 +813,31 @@ func _update_shop_display() -> void:
 				class_text = "\n(%s only)" % upgrade.class_req
 			btn.text = "%dg\n%s\n%s\n%s%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc, class_text]
 			btn.disabled = false
+			# Buff icon — use rarity icon for class-specific, stat icon otherwise
+			var stat_key: String = upgrade.get("stat", "")
+			if upgrade.rarity == "Epic" and BUFF_ICONS.has("_epic"):
+				btn.icon = BUFF_ICONS["_epic"]
+			elif upgrade.rarity == "Rare" and upgrade.has("class_req") and BUFF_ICONS.has("_rare"):
+				btn.icon = BUFF_ICONS["_rare"]
+			elif BUFF_ICONS.has(stat_key):
+				btn.icon = BUFF_ICONS[stat_key]
+			# Rarity coloring via left border accent
 			if upgrade.rarity == "Rare":
-				btn.modulate = Color(0.85, 0.6, 1.0)
+				var rare_style := StyleBoxFlat.new()
+				rare_style.bg_color = Color(0.18, 0.18, 0.22)
+				rare_style.border_color = Color(0.65, 0.45, 0.85)
+				rare_style.border_width_left = 3
+				rare_style.set_corner_radius_all(3)
+				rare_style.set_content_margin_all(4)
+				btn.add_theme_stylebox_override("normal", rare_style)
 			elif upgrade.rarity == "Epic":
-				btn.modulate = Color(1.0, 0.7, 0.3)
+				var epic_style := StyleBoxFlat.new()
+				epic_style.bg_color = Color(0.18, 0.18, 0.22)
+				epic_style.border_color = Color(1.0, 0.6, 0.2)
+				epic_style.border_width_left = 3
+				epic_style.set_corner_radius_all(3)
+				epic_style.set_content_margin_all(4)
+				btn.add_theme_stylebox_override("normal", epic_style)
 		if i == _selected_shop_slot and not slot.sold:
 			btn.modulate = btn.modulate.lightened(0.35)
 
@@ -1091,6 +1130,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.necromancy_stacks += int(amount)
 		"primed":
 			unit.primed = true
+		"corrosive":
+			unit.corrosive_power += int(amount)
 		# ── Rare Hero-Specific ──
 		"blood_rage":
 			unit.damage += 5
@@ -1409,6 +1450,34 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 		archer.health_bar.max_value = archer.max_hp
 		archer.health_bar.value = archer.current_hp
 		archer._update_armor_bar()
+	# Variant-specific skeleton buffs (scale with round)
+	var round_num: int = GameManager.current_round
+	match summoner.ability_key:
+		"summoner_guardian":
+			var bonus_hp := 10 + round_num * 4
+			var bonus_armor := 3 + round_num * 2
+			archer.max_hp += bonus_hp
+			archer.current_hp = archer.max_hp
+			archer.armor += bonus_armor
+			archer.max_armor = maxi(archer.max_armor, archer.armor)
+			archer.health_bar.max_value = archer.max_hp
+			archer.health_bar.value = archer.current_hp
+			archer._update_armor_bar()
+		"summoner_familiar":
+			var bonus_dmg := 2 + round_num * 2
+			var bonus_crit := 5.0 + round_num * 1.5
+			var bonus_aps := 0.05 + round_num * 0.02
+			archer.damage += bonus_dmg
+			archer.crit_chance += bonus_crit
+			archer.attacks_per_second += bonus_aps
+		_:
+			var bonus_hp := 5 + round_num * 2
+			var bonus_dmg := 1 + round_num
+			archer.max_hp += bonus_hp
+			archer.current_hp = archer.max_hp
+			archer.damage += bonus_dmg
+			archer.health_bar.max_value = archer.max_hp
+			archer.health_bar.value = archer.current_hp
 
 # ── Input (Drag & Drop + Selection) ────────────────────────
 
@@ -1684,6 +1753,7 @@ func _show_info_panel(unit: Unit) -> void:
 	var header_text := "%s\n%s  (Cost: %dg  Farms: %d)" % [unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
 	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
 	header.text = header_text
+	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_panel.add_child(header)
 
 	info_panel.add_child(HSeparator.new())
@@ -1742,6 +1812,7 @@ func _show_info_panel(unit: Unit) -> void:
 			upg_lbl.text = "%s Lv%d — %s" % [upg.name, level, upg.desc]
 		else:
 			upg_lbl.text = "%s — %s" % [upg.name, upg.desc]
+		upg_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(upg_lbl)
 		info_panel.add_child(row)
 
@@ -1762,6 +1833,7 @@ func _show_info_panel(unit: Unit) -> void:
 	if unit.unit_data.boosted_stats.size() > 0:
 		text += "\nBoosted: %s" % ", ".join(unit.unit_data.boosted_stats)
 	extras.text = text
+	extras.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_panel.add_child(extras)
 
 func _add_stat_row(unit: Unit, stat_key: String, label_text: String, value_text: String, can_buy: bool, increment: float) -> void:
@@ -1812,6 +1884,7 @@ func _show_shop_preview(idx: int) -> void:
 		var merge_target := _find_player_unit_by_class(data.unit_class)
 		if merge_target:
 			header.text += "\nAuto-merge into existing unit"
+		header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info_panel.add_child(header)
 
 		info_panel.add_child(HSeparator.new())
@@ -1847,12 +1920,14 @@ func _show_shop_preview(idx: int) -> void:
 		if data.boosted_stats.size() > 0:
 			text += "\nBoosted: %s" % ", ".join(data.boosted_stats)
 		extras.text = text
+		extras.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info_panel.add_child(extras)
 	else:
 		var upgrade: Dictionary = slot.data
 		var header := Label.new()
 		header.add_theme_font_size_override("font_size", 16)
 		header.text = "%s\n%s  (Cost: %dg)" % [upgrade.name, upgrade.rarity, upgrade.cost]
+		header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info_panel.add_child(header)
 
 		info_panel.add_child(HSeparator.new())
@@ -1863,6 +1938,7 @@ func _show_shop_preview(idx: int) -> void:
 		if upgrade.has("class_req"):
 			desc_text += "\nRequires: %s" % upgrade.class_req
 		desc.text = desc_text
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info_panel.add_child(desc)
 
 func _hide_info_panel() -> void:

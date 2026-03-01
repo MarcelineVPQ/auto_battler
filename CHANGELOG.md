@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.7.1 — Summoner Skeleton Archer Rework
+
+### Skeleton Archer Unit
+- New **Skeleton Archer** minion type with unique skull+bow icon, name pool, and stats
+- All three Summoner variants now raise skeleton archers instead of spawning regular Archers/Warlocks
+- Skeleton archers fire arrow projectiles and receive their own cyan class color
+
+### Summoner Variant Rework
+- **Raise Skeleton** (default) — Summons a skeleton archer with minor HP and damage scaling per round
+- **Raise Guardian** — Summons a fortified skeleton with bonus HP and armor that scale per round
+- **Raise Revenant** — Summons a deadly skeleton with bonus damage, crit, and attack speed per round
+
+### Round Scaling
+- Summoned skeletons now receive variant-specific stat buffs that scale with the current round number
+- Guardian skeletons become noticeably tankier in later rounds; Revenant skeletons hit progressively harder
+
+---
+
 ## v0.7.0 — Random Names & Ability Variants per Hero Class
 
 ### Random Hero Names
@@ -17,7 +35,7 @@ Each unit is randomly assigned one of 3 ability variants when spawned:
 - **Grunt** — Frenzy (attack speed buff), War Cry (all allies +3 damage), Cleave (AoE melee in 100px)
 - **Archer** — Volley (AoE reduced damage), Piercing Shot (single target, ignores armor), Marked Target (enemy takes +30% damage)
 - **Assassin** — Shadowstrike (+50% crit), Poison Blade (bonus damage buff), Vanish (+80% evasion + guaranteed crit)
-- **Summoner** — Summon Archer (spawns archer), Summon Guardian (spawns tank minion), Arcane Familiar (spawns warlock minion)
+- **Summoner** — Raise Skeleton (skeleton archer), Raise Guardian (fortified skeleton), Raise Revenant (deadly skeleton)
 - **Paladin** — Holy Aegis (armor restore + damage buff), Smite (heavy damage + self heal), Consecrate (AoE damage + AoE heal)
 
 ### Shop Preview
