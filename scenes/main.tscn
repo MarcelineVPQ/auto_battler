@@ -68,9 +68,9 @@ text = "Buy Farm (3g)"
 
 [node name="ReadyButton" type="Button" parent="UI"]
 offset_left = 1010.0
-offset_top = 683.0
+offset_top = 640.0
 offset_right = 1270.0
-offset_bottom = 715.0
+offset_bottom = 672.0
 text = "Ready"
 
 [node name="ResultLabel" type="Label" parent="UI"]
@@ -87,7 +87,7 @@ visible = false
 offset_left = 1010.0
 offset_top = 170.0
 offset_right = 1270.0
-offset_bottom = 678.0
+offset_bottom = 510.0
 horizontal_scroll_mode = 0
 
 [node name="InfoPanel" type="VBoxContainer" parent="UI/InfoScroll"]

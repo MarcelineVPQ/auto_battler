@@ -61,7 +61,7 @@ var hero_pool: Array[UnitData] = [
 
 # Upgrade definitions
 var upgrade_pool: Array[Dictionary] = [
-	# ── Cheap (2-3g) ──
+	# ── Generic: Cheap (2-3g) ──
 	{"name": "Corrosive", "cost": 2, "rarity": "Normal", "desc": "+2 corrosive DoT (armor then HP)", "stat": "corrosive", "amount": 2},
 	{"name": "Exploit Weakness", "cost": 2, "rarity": "Normal", "desc": "+3 damage", "stat": "damage", "amount": 3},
 	{"name": "Toughness", "cost": 2, "rarity": "Normal", "desc": "+20 max HP", "stat": "max_hp", "amount": 20},
@@ -71,32 +71,34 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Nimble", "cost": 2, "rarity": "Normal", "desc": "+3% evasion", "stat": "evasion", "amount": 3.0},
 	{"name": "Quickstep", "cost": 3, "rarity": "Normal", "desc": "+5 move speed", "stat": "move_speed", "amount": 5.0},
 	{"name": "Longshot", "cost": 3, "rarity": "Normal", "desc": "+30 atk range", "stat": "attack_range", "amount": 30.0},
-	{"name": "Vitality", "cost": 3, "rarity": "Normal", "desc": "+15 max HP", "stat": "max_hp", "amount": 15},
-	{"name": "Poison Tip", "cost": 3, "rarity": "Normal", "desc": "+1 damage", "stat": "damage", "amount": 1},
-	# ── Mid (4-6g) ──
+	{"name": "Poison Tip", "cost": 3, "rarity": "Normal", "desc": "+1 corrosive power", "stat": "corrosive", "amount": 1},
+	# ── Generic: Mid (4-6g) ──
 	{"name": "Deadly Focus", "cost": 5, "rarity": "Normal", "desc": "+5% crit", "stat": "crit_chance", "amount": 5.0},
-	{"name": "Revenge", "cost": 5, "rarity": "Normal", "desc": "+10 armor", "stat": "armor", "amount": 10},
 	{"name": "Bloodlust", "cost": 5, "rarity": "Normal", "desc": "+0.2 atk/s", "stat": "attacks_per_second", "amount": 0.2},
-	{"name": "Eagle Eye", "cost": 5, "rarity": "Normal", "desc": "+50 atk range", "stat": "attack_range", "amount": 50.0},
-	{"name": "Adrenaline", "cost": 4, "rarity": "Normal", "desc": "+8 move speed", "stat": "move_speed", "amount": 8.0},
 	{"name": "Giant Killer", "cost": 6, "rarity": "Normal", "desc": "+5 damage", "stat": "damage", "amount": 5},
 	{"name": "Arcane Surge", "cost": 4, "rarity": "Normal", "desc": "+3 max mana", "stat": "max_mana", "amount": 3},
 	{"name": "Primed", "cost": 5, "rarity": "Normal", "desc": "Ability ready at battle start", "stat": "primed", "amount": 1.0},
-	{"name": "Fortify", "cost": 6, "rarity": "Normal", "desc": "+15 armor", "stat": "armor", "amount": 15},
-	{"name": "Living Shield", "cost": 6, "rarity": "Normal", "desc": "+15 armor", "stat": "armor", "amount": 15},
-	# ── Expensive (8-12g) ──
-	{"name": "Sepsis", "cost": 8, "rarity": "Normal", "desc": "+5% skill proc", "stat": "skill_proc_chance", "amount": 5.0},
-	{"name": "Thorns", "cost": 8, "rarity": "Normal", "desc": "+20 armor", "stat": "armor", "amount": 20},
-	{"name": "Vampirism", "cost": 8, "rarity": "Normal", "desc": "+8% evasion", "stat": "evasion", "amount": 8.0},
-	{"name": "Berserk", "cost": 10, "rarity": "Normal", "desc": "+0.3 atk/s", "stat": "attacks_per_second", "amount": 0.3},
-	{"name": "Last Stand", "cost": 10, "rarity": "Normal", "desc": "+40 max HP", "stat": "max_hp", "amount": 40},
-	{"name": "Relentless", "cost": 10, "rarity": "Normal", "desc": "+12 move speed", "stat": "move_speed", "amount": 12.0},
-	# ── Rare (15g) ──
-	{"name": "Nearly Fatal", "cost": 15, "rarity": "Rare", "desc": "+15% crit", "stat": "crit_chance", "amount": 15.0},
-	{"name": "Invincible", "cost": 15, "rarity": "Rare", "desc": "+15% evasion", "stat": "evasion", "amount": 15.0},
-	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "+10 damage", "stat": "damage", "amount": 10},
-	{"name": "Sniper", "cost": 15, "rarity": "Rare", "desc": "+100 atk range", "stat": "attack_range", "amount": 100.0},
-	{"name": "Necromancy", "cost": 12, "rarity": "Rare", "desc": "Summoner: archers inherit 15% stats (max 3)", "stat": "necromancy", "amount": 1.0},
+	{"name": "Living Shield", "cost": 6, "rarity": "Normal", "desc": "Absorb first 30 dmg each combat", "stat": "living_shield", "amount": 30},
+	# ── Generic: Expensive (8-10g) ──
+	{"name": "Sepsis", "cost": 8, "rarity": "Normal", "desc": "Attacks spread 2 corrosive to nearby enemies", "stat": "sepsis", "amount": 2},
+	{"name": "Thorns", "cost": 8, "rarity": "Normal", "desc": "Aura: enemies within 120px move at -50% speed", "stat": "thorns_slow", "amount": 1.0},
+	{"name": "Vampirism", "cost": 8, "rarity": "Normal", "desc": "Heal 25% of damage dealt", "stat": "lifesteal", "amount": 0.25},
+	{"name": "Berserk", "cost": 10, "rarity": "Normal", "desc": "-30% max HP, +6 dmg, +0.4 atk/s", "stat": "berserk", "amount": 1.0},
+	{"name": "Last Stand", "cost": 10, "rarity": "Normal", "desc": "Below 30% HP: +12 dmg, +0.4 atk/s, +15% evasion", "stat": "last_stand", "amount": 1.0},
+	{"name": "Relentless", "cost": 10, "rarity": "Normal", "desc": "On kill: +2 dmg, +0.1 atk/s permanently", "stat": "relentless", "amount": 1.0},
+	# ── Generic: Rare (15g, round 6+) ──
+	{"name": "Invincible", "cost": 15, "rarity": "Rare", "desc": "Immune to first 3 hits per combat, +5% evasion", "stat": "invincible", "amount": 3},
+	{"name": "Haymaker", "cost": 15, "rarity": "Rare", "desc": "Every 4th attack deals 3x damage", "stat": "haymaker", "amount": 4},
+	# ── Normal Hero-Specific (5g, always available) ──
+	{"name": "War Paint", "cost": 5, "rarity": "Normal", "desc": "+3 dmg, +10 HP", "stat": "war_paint", "amount": 1.0, "class_req": "Grunt"},
+	{"name": "Venom Arrow", "cost": 5, "rarity": "Normal", "desc": "+2 poison/hit (stacks, HP dmg/tick)", "stat": "venom_arrow", "amount": 2, "class_req": "Archer"},
+	{"name": "Shadow Cloak", "cost": 5, "rarity": "Normal", "desc": "+5% evasion, +3% crit", "stat": "shadow_cloak", "amount": 1.0, "class_req": "Assassin"},
+	{"name": "Thick Plate", "cost": 5, "rarity": "Normal", "desc": "+10 armor, +15 HP", "stat": "thick_plate", "amount": 1.0, "class_req": "Tank"},
+	{"name": "Dark Sigil", "cost": 5, "rarity": "Normal", "desc": "+3 dmg, +2 max mana", "stat": "dark_sigil", "amount": 1.0, "class_req": "Warlock"},
+	{"name": "Sacred Blessing", "cost": 5, "rarity": "Normal", "desc": "+15 HP, +2 max mana", "stat": "sacred_blessing", "amount": 1.0, "class_req": "Priest"},
+	{"name": "Herbal Brew", "cost": 5, "rarity": "Normal", "desc": "+3 dmg, +3% skill proc", "stat": "herbal_brew", "amount": 1.0, "class_req": "Herbalist"},
+	{"name": "Shield of Faith", "cost": 5, "rarity": "Normal", "desc": "+8 armor, +10% armor effectiveness", "stat": "shield_of_faith", "amount": 1.0, "class_req": "Paladin"},
+	{"name": "Soul Binding", "cost": 5, "rarity": "Normal", "desc": "+1 necromancy stack, +10 HP", "stat": "soul_binding", "amount": 1.0, "class_req": "Summoner"},
 	# ── Rare Hero-Specific (12g, round 6+) ──
 	{"name": "Blood Rage", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +0.2 atk/s", "stat": "blood_rage", "amount": 1.0, "class_req": "Grunt"},
 	{"name": "Deadeye", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +80 range", "stat": "deadeye", "amount": 1.0, "class_req": "Archer"},
@@ -105,7 +107,8 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Soul Rend", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +3 max mana", "stat": "soul_rend", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Divine Covenant", "cost": 12, "rarity": "Rare", "desc": "+30 HP, +3 max mana", "stat": "divine_covenant", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Toxic Mastery", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +5% skill proc", "stat": "toxic_mastery", "amount": 1.0, "class_req": "Herbalist"},
-	{"name": "Holy Vanguard", "cost": 12, "rarity": "Rare", "desc": "+20 armor, +3 dmg", "stat": "holy_vanguard", "amount": 1.0, "class_req": "Paladin"},
+	{"name": "Holy Vanguard", "cost": 12, "rarity": "Rare", "desc": "+15 armor, +25% armor power, +3 dmg", "stat": "holy_vanguard", "amount": 1.0, "class_req": "Paladin"},
+	{"name": "Necromancy", "cost": 12, "rarity": "Rare", "desc": "Archers inherit 15% stats (max 3)", "stat": "necromancy", "amount": 1.0, "class_req": "Summoner"},
 	# ── Epic Hero-Specific (18g, round 11+) ──
 	{"name": "Rampage", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +0.3 atk/s, +20 HP", "stat": "rampage", "amount": 1.0, "class_req": "Grunt"},
 	{"name": "Hawkeye", "cost": 18, "rarity": "Epic", "desc": "+12 dmg, +120 range, +8% crit", "stat": "hawkeye", "amount": 1.0, "class_req": "Archer"},
@@ -114,7 +117,8 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Dark Pact", "cost": 18, "rarity": "Epic", "desc": "+15 dmg, +5 max mana", "stat": "dark_pact", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Ascension", "cost": 18, "rarity": "Epic", "desc": "+50 HP, +5 max mana, +5 dmg", "stat": "ascension", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Plague Lord", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +8% skill proc, +15 armor", "stat": "plague_lord", "amount": 1.0, "class_req": "Herbalist"},
-	{"name": "Divine Bulwark", "cost": 18, "rarity": "Epic", "desc": "+30 armor, +40 HP, +5 dmg", "stat": "divine_bulwark", "amount": 1.0, "class_req": "Paladin"},
+	{"name": "Divine Bulwark", "cost": 18, "rarity": "Epic", "desc": "+25 armor, +50% armor power, +40 HP, +5 dmg", "stat": "divine_bulwark", "amount": 1.0, "class_req": "Paladin"},
+	{"name": "Legion Master", "cost": 18, "rarity": "Epic", "desc": "+2 necromancy, summoned units +5 dmg, +30 HP", "stat": "legion_master", "amount": 1.0, "class_req": "Summoner"},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
@@ -340,6 +344,10 @@ func _on_tick_completed() -> void:
 	dps_player_label.text = "Your DPS: %.1f" % player_dps
 	dps_enemy_label.text = "Enemy DPS: %.1f" % enemy_dps
 
+	# Refresh info panel during combat so debuff stacks update live
+	if _info_unit and is_instance_valid(_info_unit) and not _info_unit.is_dead:
+		_show_info_panel(_info_unit)
+
 func _show_battle_ui() -> void:
 	strength_bar_container.visible = true
 	dps_panel.visible = true
@@ -361,6 +369,8 @@ func _build_wave_select_ui() -> void:
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.offset_top = 40
+	center.offset_bottom = -40
 	wave_overlay.add_child(center)
 
 	wave_panel = PanelContainer.new()
@@ -425,7 +435,7 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 170)
+		btn.custom_minimum_size = Vector2(240, 210)
 
 		# Margin wrapper so the card content sizes the button
 		var margin := MarginContainer.new()
@@ -685,17 +695,18 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 555)
+	shop_bar.position = Vector2(30, 520)
 	shop_bar.add_theme_constant_override("separation", 5)
 	ui_layer.add_child(shop_bar)
 
 	for i in range(HERO_SHOP_SLOTS + UPGRADE_SHOP_SLOTS):
 		var btn := Button.new()
 		if i < HERO_SHOP_SLOTS:
-			btn.custom_minimum_size = Vector2(130, 42)
+			btn.custom_minimum_size = Vector2(130, 80)
 		else:
-			btn.custom_minimum_size = Vector2(110, 42)
+			btn.custom_minimum_size = Vector2(120, 80)
 		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_constant_override("icon_max_width", 28)
 		var idx := i
 		btn.pressed.connect(func(): _on_shop_card_pressed(idx))
 		shop_bar.add_child(btn)
@@ -706,28 +717,29 @@ func _build_shop_bar() -> void:
 	shop_bar.add_child(sep)
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
-	# Action buttons — side by side row
+	# Action buttons — row above Ready button
 	action_bar = HBoxContainer.new()
-	action_bar.add_theme_constant_override("separation", 3)
-	shop_bar.add_child(action_bar)
+	action_bar.position = Vector2(1010, 610)
+	action_bar.add_theme_constant_override("separation", 5)
+	ui_layer.add_child(action_bar)
 
 	reroll_button = Button.new()
-	reroll_button.custom_minimum_size = Vector2(0, 28)
-	reroll_button.add_theme_font_size_override("font_size", 10)
+	reroll_button.custom_minimum_size = Vector2(80, 24)
+	reroll_button.add_theme_font_size_override("font_size", 11)
 	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	action_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
-	freeze_button.custom_minimum_size = Vector2(0, 28)
-	freeze_button.add_theme_font_size_override("font_size", 10)
+	freeze_button.custom_minimum_size = Vector2(60, 24)
+	freeze_button.add_theme_font_size_override("font_size", 11)
 	freeze_button.text = "Freeze"
 	freeze_button.pressed.connect(_on_freeze_pressed)
 	action_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
-	sell_button.custom_minimum_size = Vector2(0, 28)
-	sell_button.add_theme_font_size_override("font_size", 10)
+	sell_button.custom_minimum_size = Vector2(50, 24)
+	sell_button.add_theme_font_size_override("font_size", 11)
 	sell_button.text = "Sell"
 	sell_button.pressed.connect(_on_sell_pressed)
 	action_bar.add_child(sell_button)
@@ -1040,9 +1052,11 @@ func _on_reroll_pressed() -> void:
 
 func _show_shop() -> void:
 	shop_bar.visible = true
+	action_bar.visible = true
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
+	action_bar.visible = false
 	shop_confirm_bar.visible = false
 
 
@@ -1128,6 +1142,82 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.primed = true
 		"corrosive":
 			unit.corrosive_power += int(amount)
+		# ── Reworked Generic Mechanics ──
+		"thorns_slow":
+			unit.thorns_slow = true
+		"lifesteal":
+			unit.lifesteal_pct += amount
+		"berserk":
+			var hp_loss := int(unit.max_hp * 0.3)
+			unit.max_hp -= hp_loss
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.damage += 6
+			unit.attacks_per_second += 0.4
+		"last_stand":
+			unit.last_stand = true
+		"relentless":
+			unit.relentless = true
+		"sepsis":
+			unit.sepsis_spread += int(amount)
+		"living_shield":
+			unit.living_shield_max += int(amount)
+			unit.living_shield_hp += int(amount)
+		"invincible":
+			unit.invincible_max += int(amount)
+			unit.invincible_charges += int(amount)
+			unit.evasion += 5.0
+		"haymaker":
+			unit.haymaker_counter = int(amount)
+		# ── Normal Hero-Specific ──
+		"venom_arrow":
+			unit.poison_power += int(amount)
+		"war_paint":
+			unit.damage += 3
+			unit.max_hp += 10
+			unit.current_hp += 10
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+		"steady_aim":
+			unit.damage += 4
+			unit.attack_range += 20
+		"shadow_cloak":
+			unit.evasion += 5.0
+			unit.crit_chance += 3.0
+		"thick_plate":
+			unit.armor += 10
+			unit.max_armor += 10
+			unit._update_armor_bar()
+			unit.max_hp += 15
+			unit.current_hp += 15
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+		"dark_sigil":
+			unit.damage += 3
+			unit.max_mana += 2
+			unit._update_mana_bar()
+		"sacred_blessing":
+			unit.max_hp += 15
+			unit.current_hp += 15
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.max_mana += 2
+			unit._update_mana_bar()
+		"herbal_brew":
+			unit.damage += 3
+			unit.skill_proc_chance += 3.0
+		"shield_of_faith":
+			unit.armor += 8
+			unit.max_armor += 8
+			unit.armor_effectiveness += 0.1
+			unit._update_armor_bar()
+		"soul_binding":
+			unit.necromancy_stacks += 1
+			unit.max_hp += 10
+			unit.current_hp += 10
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
 		# ── Rare Hero-Specific ──
 		"blood_rage":
 			unit.damage += 5
@@ -1161,8 +1251,9 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.damage += 5
 			unit.skill_proc_chance += 5
 		"holy_vanguard":
-			unit.armor += 20
-			unit.max_armor += 20
+			unit.armor += 15
+			unit.max_armor += 15
+			unit.armor_effectiveness += 0.25
 			unit._update_armor_bar()
 			unit.damage += 3
 		# ── Epic Hero-Specific ──
@@ -1209,14 +1300,22 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.max_armor += 15
 			unit._update_armor_bar()
 		"divine_bulwark":
-			unit.armor += 30
-			unit.max_armor += 30
+			unit.armor += 25
+			unit.max_armor += 25
+			unit.armor_effectiveness += 0.5
 			unit._update_armor_bar()
 			unit.max_hp += 40
 			unit.current_hp += 40
 			unit.health_bar.max_value = unit.max_hp
 			unit.health_bar.value = unit.current_hp
 			unit.damage += 5
+		"legion_master":
+			unit.legion_master = true
+			unit.necromancy_stacks += 2
+			unit.max_hp += 30
+			unit.current_hp += 30
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
@@ -1310,6 +1409,17 @@ func _save_squad() -> void:
 			"applied_upgrades": saved_upgrades,
 			"survival_hp_regen_bonus": unit.survival_hp_regen_bonus,
 			"survival_mana_regen_bonus": unit.survival_mana_regen_bonus,
+			# New buff properties
+			"poison_power": unit.poison_power,
+			"thorns_slow": unit.thorns_slow,
+			"lifesteal_pct": unit.lifesteal_pct,
+			"last_stand": unit.last_stand,
+			"relentless": unit.relentless,
+			"sepsis_spread": unit.sepsis_spread,
+			"living_shield_max": unit.living_shield_max,
+			"invincible_max": unit.invincible_max,
+			"haymaker_counter": unit.haymaker_counter,
+			"legion_master": unit.legion_master,
 			"stats": {
 				"damage": unit.damage,
 				"max_hp": unit.max_hp,
@@ -1348,6 +1458,19 @@ func _restore_squad() -> void:
 		unit.stat_purchases = entry.get("stat_purchases", {}).duplicate()
 		unit.survival_hp_regen_bonus = entry.get("survival_hp_regen_bonus", 0.0)
 		unit.survival_mana_regen_bonus = entry.get("survival_mana_regen_bonus", 0.0)
+		# Restore new buff properties
+		unit.poison_power = entry.get("poison_power", 0)
+		unit.thorns_slow = entry.get("thorns_slow", false)
+		unit.lifesteal_pct = entry.get("lifesteal_pct", 0.0)
+		unit.last_stand = entry.get("last_stand", false)
+		unit.relentless = entry.get("relentless", false)
+		unit.sepsis_spread = entry.get("sepsis_spread", 0)
+		unit.living_shield_max = entry.get("living_shield_max", 0)
+		unit.living_shield_hp = entry.get("living_shield_max", 0)
+		unit.invincible_max = entry.get("invincible_max", 0)
+		unit.invincible_charges = entry.get("invincible_max", 0)
+		unit.haymaker_counter = entry.get("haymaker_counter", 0)
+		unit.legion_master = entry.get("legion_master", false)
 		var saved_upgrades: Array = entry.get("applied_upgrades", [])
 		for upg in saved_upgrades:
 			unit.applied_upgrades.append(upg.duplicate())
@@ -1375,7 +1498,7 @@ func _restore_squad() -> void:
 			unit._update_armor_bar()
 			unit.update_scale()
 
-	# Paladin aura: allies within ability_range of a Paladin get full armor restore
+	# Paladin aura: allies within ability_range of a Paladin get +10% armor effectiveness
 	var player_units := board.get_units_on_team(Unit.Team.PLAYER)
 	var paladins: Array[Unit] = []
 	for u in player_units:
@@ -1383,12 +1506,9 @@ func _restore_squad() -> void:
 			paladins.append(u)
 	if not paladins.is_empty():
 		for u in player_units:
-			if u.max_armor <= 0:
-				continue
 			for pal in paladins:
-				if u.position.distance_to(pal.position) <= pal.ability_range:
-					u.armor = u.max_armor
-					u._update_armor_bar()
+				if u != pal and u.position.distance_to(pal.position) <= pal.ability_range:
+					u.armor_effectiveness += 0.1
 					break
 
 # ── Unit Spawning ───────────────────────────────────────────
@@ -1474,6 +1594,13 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 			archer.damage += bonus_dmg
 			archer.health_bar.max_value = archer.max_hp
 			archer.health_bar.value = archer.current_hp
+	# Legion Master: summoned units get +5 dmg, +30 HP
+	if summoner.legion_master:
+		archer.damage += 5
+		archer.max_hp += 30
+		archer.current_hp = mini(archer.current_hp + 30, archer.max_hp)
+		archer.health_bar.max_value = archer.max_hp
+		archer.health_bar.value = archer.current_hp
 
 # ── Input (Drag & Drop + Selection) ────────────────────────
 
@@ -1612,14 +1739,14 @@ func _on_combat_ended(player_won: bool) -> void:
 		AudioManager.play("defeat")
 	_update_ui()
 
-	if GameManager.lives > 0 and GameManager.current_round < GameManager.MAX_ROUNDS:
-		if player_won:
-			get_tree().create_timer(2.0).timeout.connect(_start_next_round)
-		else:
-			get_tree().create_timer(2.0).timeout.connect(_start_rematch)
-	elif GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
+	if GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
 		result_label.text = "GAME COMPLETE!"
 		_show_return_to_menu_button()
+	elif GameManager.lives > 0:
+		if player_won and GameManager.current_round < GameManager.MAX_ROUNDS:
+			get_tree().create_timer(2.0).timeout.connect(_start_next_round)
+		elif not player_won:
+			get_tree().create_timer(2.0).timeout.connect(_start_rematch)
 
 func _show_return_to_menu_button() -> void:
 	var btn := Button.new()
@@ -1768,6 +1895,19 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "move_speed", "Move Speed", "%.0f" % unit.move_speed, can_buy, 5.0)
 	_add_stat_row(unit, "crit_chance", "Crit", "%.0f%%" % unit.crit_chance, can_buy, 1.0)
 	_add_stat_row(unit, "skill_proc_chance", "Skill Proc", "%.0f%%" % unit.skill_proc_chance, can_buy, 1.0)
+
+	# Active debuffs / combat status (shown only when relevant)
+	if unit.poison_dot > 0 or unit.corrosive_dot > 0:
+		info_panel.add_child(HSeparator.new())
+		var debuff_header := Label.new()
+		debuff_header.add_theme_font_size_override("font_size", 14)
+		debuff_header.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+		debuff_header.text = "Debuffs:"
+		info_panel.add_child(debuff_header)
+		if unit.poison_dot > 0:
+			_add_stat_display("Poison", "%d stacks (%d HP/tick)" % [unit.poison_dot, unit.poison_dot])
+		if unit.corrosive_dot > 0:
+			_add_stat_display("Corrosive", "%d stacks" % unit.corrosive_dot)
 
 	# Survival Regen section (shown only when nonzero)
 	if unit.survival_hp_regen_bonus > 0.0 or unit.survival_mana_regen_bonus > 0.0:

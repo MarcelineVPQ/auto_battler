@@ -17,8 +17,44 @@ var selected_unit: Unit = null
 var merge_highlight_unit: Unit = null
 var show_grid: bool = false
 var targeting_mode: bool = false
+var blood_splats: Array[Node2D] = []
 
 @onready var units_container: Node2D = $Units
+
+func spawn_blood_splat(pos: Vector2) -> void:
+	var splat := Node2D.new()
+	splat.position = pos
+	splat.z_index = -1  # Draw behind units
+	# Generate random splat data and store it
+	var drops: Array[Dictionary] = []
+	# Main pool
+	drops.append({"offset": Vector2.ZERO, "radius": randf_range(6.0, 10.0)})
+	# Smaller satellite drops
+	var num_drops := randi_range(3, 6)
+	for i in range(num_drops):
+		var angle := randf() * TAU
+		var dist := randf_range(4.0, 14.0)
+		drops.append({
+			"offset": Vector2(cos(angle), sin(angle)) * dist,
+			"radius": randf_range(2.0, 5.0),
+		})
+	splat.set_meta("drops", drops)
+	splat.set_meta("splat_alpha", 0.6)
+	splat.draw.connect(func():
+		var d: Array = splat.get_meta("drops")
+		var alpha: float = splat.get_meta("splat_alpha")
+		for drop in d:
+			var col := Color(0.5, 0.05, 0.05, alpha)
+			splat.draw_circle(drop.offset, drop.radius, col)
+	)
+	add_child(splat)
+	blood_splats.append(splat)
+
+func clear_blood_splats() -> void:
+	for splat in blood_splats:
+		if is_instance_valid(splat):
+			splat.queue_free()
+	blood_splats.clear()
 
 func _process(_delta: float) -> void:
 	if selected_unit and is_instance_valid(selected_unit) and not selected_unit.is_dead:
@@ -179,6 +215,8 @@ func add_unit(unit: Unit) -> void:
 		units_container.add_child(unit)
 
 func remove_unit(unit: Unit) -> void:
+	if unit.is_dead:
+		spawn_blood_splat(unit.position)
 	all_units.erase(unit)
 	if selected_unit == unit:
 		selected_unit = null
@@ -239,4 +277,5 @@ func clear_all() -> void:
 			unit.queue_free()
 	all_units.clear()
 	selected_unit = null
+	clear_blood_splats()
 	queue_redraw()

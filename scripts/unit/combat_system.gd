@@ -33,6 +33,12 @@ func start_combat() -> void:
 			# Primed units start with full mana — ability fires immediately
 			unit.current_mana = unit.max_mana
 			unit._update_mana_bar()
+		# Reset per-combat buffs
+		unit.living_shield_hp = unit.living_shield_max
+		unit.invincible_charges = unit.invincible_max
+		unit.last_stand_active = false
+		if unit.haymaker_counter > 0:
+			unit.haymaker_counter = 4
 		# Track survival time for player units
 		if unit.team == Unit.Team.PLAYER:
 			unit.died.connect(_on_player_unit_died, CONNECT_ONE_SHOT)
@@ -103,22 +109,41 @@ func _process_tick() -> void:
 			)
 			unit.health_bar.value = unit.current_hp
 
-		# Corrosive DoT — damages armor first, remainder hits HP
+		# Corrosive DoT — shreds armor rating and deals direct HP damage
 		if unit.corrosive_dot > 0:
-			var dot_dmg := unit.corrosive_dot
+			# Shred armor by 1 per stack (weakens damage reduction)
 			if unit.armor > 0:
-				var absorbed := mini(unit.armor, dot_dmg)
-				unit.armor -= absorbed
-				dot_dmg -= absorbed
+				unit.armor = maxi(unit.armor - unit.corrosive_dot, 0)
 				unit._update_armor_bar()
-			if dot_dmg > 0:
-				unit.current_hp -= dot_dmg
-				unit.current_hp = maxi(unit.current_hp, 0)
-				unit.health_bar.value = unit.current_hp
+			# Deal direct HP damage (bypasses armor reduction)
+			unit.current_hp -= unit.corrosive_dot
+			unit.current_hp = maxi(unit.current_hp, 0)
+			unit.health_bar.value = unit.current_hp
 			if unit.current_hp <= 0:
 				unit.die()
 				board.remove_unit(unit)
 				continue
+
+		# Poison DoT — pure HP damage, no armor shred
+		if unit.poison_dot > 0:
+			unit.current_hp -= unit.poison_dot
+			unit.current_hp = maxi(unit.current_hp, 0)
+			unit.health_bar.value = unit.current_hp
+			if unit.current_hp <= 0:
+				unit.die()
+				board.remove_unit(unit)
+				continue
+
+		# Last Stand: activate bonuses when below 30% HP
+		if unit.last_stand and not unit.last_stand_active:
+			if float(unit.current_hp) / float(unit.max_hp) < 0.3:
+				unit.last_stand_active = true
+				unit.damage += 12
+				unit.attacks_per_second += 0.4
+				unit.evasion += 15.0
+				var team_tag := "cyan" if unit.team == Unit.Team.PLAYER else "red"
+				var u_name := unit.display_name if unit.display_name != "" else unit.unit_data.unit_name
+				combat_event.emit("[color=%s]%s activates Last Stand![/color]" % [team_tag, u_name])
 
 		# Ability trigger: when mana is full, fire ability and reset
 		if unit.current_mana >= unit.max_mana:
@@ -160,12 +185,25 @@ func _process_tick() -> void:
 		else:
 			# Out of range — move toward target, but only close enough to attack
 			var desired_dist := maxf(unit.attack_range - 10.0, 50.0)
-			var move_dist := minf(unit.move_speed, dist - desired_dist)
+			# Check thorns slow aura from enemies
+			var slowed := false
+			var opposing := player_units if unit.team == Unit.Team.ENEMY else enemy_units
+			for enemy in opposing:
+				if not enemy.is_dead and enemy.thorns_slow and unit.position.distance_to(enemy.position) <= 120.0:
+					slowed = true
+					break
+			var effective_speed := unit.move_speed * (0.5 if slowed else 1.0)
+			var move_dist := minf(effective_speed, dist - desired_dist)
 			if move_dist > 0:
 				unit.move_toward_target(target.position, move_dist)
 
 	# Push overlapping units apart
 	_separate_units(living)
+
+	# Redraw units so status icons update
+	for unit in living:
+		if not unit.is_dead:
+			unit.queue_redraw()
 
 	tick_completed.emit()
 
@@ -199,12 +237,46 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	)
 	attacker._update_mana_bar()
 
+	# Invincible: target ignores the hit entirely
+	if target.invincible_charges > 0:
+		target.invincible_charges -= 1
+		var atk_tag := "cyan" if attacker.team == Unit.Team.PLAYER else "red"
+		var t_name := target.display_name if target.display_name != "" else target.unit_data.unit_name
+		combat_event.emit("[color=%s]%s is Invincible! (%d charges left)[/color]" % [atk_tag, t_name, target.invincible_charges])
+		AudioManager.play("miss", -6.0)
+		_spawn_attack_effect(attacker, target)
+		return
+
 	# Calculate damage with crit (target vulnerability increases crit chance)
 	var atk_damage := attacker.damage
 	var effective_crit := attacker.crit_chance + target.crit_vulnerability
 	var is_crit := randf() * 100.0 < effective_crit
 	if is_crit:
 		atk_damage *= 2
+
+	# Haymaker: every 4th attack deals 3x damage
+	if attacker.haymaker_counter > 0:
+		attacker.haymaker_counter -= 1
+		if attacker.haymaker_counter <= 0:
+			attacker.haymaker_counter = 4
+			atk_damage *= 3
+
+	# Living Shield: absorb damage before it reaches the target
+	if target.living_shield_hp > 0:
+		if atk_damage <= target.living_shield_hp:
+			target.living_shield_hp -= atk_damage
+			var atk_tag := "cyan" if attacker.team == Unit.Team.PLAYER else "red"
+			var t_name := target.display_name if target.display_name != "" else target.unit_data.unit_name
+			combat_event.emit("[color=%s]%s's Living Shield absorbs %d dmg (%d remaining)[/color]" % [atk_tag, t_name, atk_damage, target.living_shield_hp])
+			AudioManager.play("miss", -6.0)
+			_spawn_attack_effect(attacker, target)
+			var tween := attacker.create_tween()
+			tween.tween_property(attacker, "scale", Vector2(1.2, 1.2), 0.1)
+			tween.tween_property(attacker, "scale", Vector2(1.0, 1.0), 0.1)
+			return
+		else:
+			atk_damage -= target.living_shield_hp
+			target.living_shield_hp = 0
 
 	# Deal damage (armor/evasion handled inside target)
 	var result := target.take_damage(atk_damage)
@@ -213,7 +285,10 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	var atk_tag := "cyan" if attacker.team == Unit.Team.PLAYER else "red"
 	var a_name := attacker.display_name if attacker.display_name != "" else attacker.unit_data.unit_name
 	var t_name := target.display_name if target.display_name != "" else target.unit_data.unit_name
-	if result.evaded:
+	if result.deflected:
+		combat_event.emit("[color=%s]%s's armor deflects %s[/color]" % [atk_tag, t_name, a_name])
+		AudioManager.play("miss", -6.0)
+	elif result.evaded:
 		combat_event.emit("[color=%s]%s evades %s[/color]" % [atk_tag, t_name, a_name])
 		AudioManager.play("miss", -6.0)
 	elif is_crit:
@@ -223,13 +298,35 @@ func _attack(attacker: Unit, target: Unit) -> void:
 		combat_event.emit("[color=%s]%s hits %s for %d dmg[/color]" % [atk_tag, a_name, t_name, result.damage])
 		AudioManager.play("hit", -8.0)
 
+	# Lifesteal: heal attacker for percentage of damage dealt
+	if result.hit and attacker.lifesteal_pct > 0.0:
+		var heal := int(ceil(float(result.damage) * attacker.lifesteal_pct))
+		attacker.current_hp = mini(attacker.current_hp + heal, attacker.max_hp)
+		attacker.health_bar.value = attacker.current_hp
+
 	# Apply corrosive stacks on hit
 	if result.hit and attacker.corrosive_power > 0:
 		target.corrosive_dot += attacker.corrosive_power
 
+	# Apply poison stacks on hit
+	if result.hit and attacker.poison_power > 0:
+		target.poison_dot += attacker.poison_power
+
+	# Sepsis: spread corrosive to enemies near target on hit
+	if result.hit and attacker.sepsis_spread > 0:
+		var nearby_team := board.get_units_on_team(target.team)
+		for nearby in nearby_team:
+			if nearby != target and not nearby.is_dead and target.position.distance_to(nearby.position) <= 100.0:
+				nearby.corrosive_dot += attacker.sepsis_spread
+
 	if target.is_dead:
 		combat_event.emit("[color=%s]%s kills %s[/color]" % [atk_tag, a_name, t_name])
 		AudioManager.play("death")
+		# Relentless: on kill, gain permanent stats
+		if attacker.relentless:
+			attacker.damage += 2
+			attacker.attacks_per_second += 0.1
+			combat_event.emit("[color=%s]%s grows stronger! (Relentless)[/color]" % [atk_tag, a_name])
 
 	# Visual feedback — attacker "punch" scale
 	var tween := attacker.create_tween()
@@ -264,11 +361,12 @@ func _trigger_ability(unit: Unit) -> void:
 	var ab_name := unit.instance_ability_name if unit.instance_ability_name != "" else unit.unit_data.ability_name
 
 	match unit.ability_key:
-		# ── Priest ──
+		# ── Priest ── (prioritizes poisoned allies)
 		"priest_heal":
 			var allies := board.get_units_on_team(unit.team)
 			var heal_amount := int(unit.damage * 4.0)
 			var healed := 0
+			var cleansed := 0
 			for ally in allies:
 				if ally.is_dead:
 					continue
@@ -277,43 +375,70 @@ func _trigger_ability(unit: Unit) -> void:
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 				ally.health_bar.value = ally.current_hp
 				healed += 1
-			combat_event.emit("[color=%s]%s casts %s — heals %d allies for %d![/color]" % [team_tag, u_name, ab_name, healed, heal_amount])
+				if ally.poison_dot > 0:
+					ally.poison_dot = 0
+					cleansed += 1
+			var msg := "[color=%s]%s casts %s — heals %d allies for %d!" % [team_tag, u_name, ab_name, healed, heal_amount]
+			if cleansed > 0:
+				msg += " Cleanses poison from %d!" % cleansed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("heal")
 		"priest_shield":
 			var allies := board.get_units_on_team(unit.team)
-			var weakest: Unit = null
+			var target_ally: Unit = null
 			for ally in allies:
 				if ally.is_dead:
 					continue
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
-				if weakest == null or ally.current_hp < weakest.current_hp:
-					weakest = ally
-			if weakest:
-				var shield_amount := int(weakest.max_hp * 0.5)
-				weakest.armor += shield_amount
-				weakest.max_armor = maxi(weakest.max_armor, weakest.armor)
-				weakest._update_armor_bar()
-				var t_name := weakest.display_name if weakest.display_name != "" else weakest.unit_data.unit_name
+				# Prioritize poisoned allies, then weakest HP
+				if target_ally == null:
+					target_ally = ally
+				elif ally.poison_dot > 0 and target_ally.poison_dot <= 0:
+					target_ally = ally
+				elif ally.poison_dot > 0 and target_ally.poison_dot > 0 and ally.poison_dot > target_ally.poison_dot:
+					target_ally = ally
+				elif ally.poison_dot <= 0 and target_ally.poison_dot <= 0 and ally.current_hp < target_ally.current_hp:
+					target_ally = ally
+			if target_ally:
+				var shield_amount := int(target_ally.max_hp * 0.5)
+				target_ally.armor += shield_amount
+				target_ally.max_armor = maxi(target_ally.max_armor, target_ally.armor)
+				target_ally._update_armor_bar()
+				var t_name := target_ally.display_name if target_ally.display_name != "" else target_ally.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s — +%d armor![/color]" % [team_tag, u_name, ab_name, t_name, shield_amount])
 			AudioManager.play("heal")
 		"priest_purify":
 			var allies := board.get_units_on_team(unit.team)
-			var weakest: Unit = null
+			var target_ally: Unit = null
 			for ally in allies:
 				if ally.is_dead:
 					continue
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
-				if weakest == null or ally.current_hp < weakest.current_hp:
-					weakest = ally
-			if weakest:
+				# Prioritize poisoned allies, then weakest HP
+				if target_ally == null:
+					target_ally = ally
+				elif ally.poison_dot > 0 and target_ally.poison_dot <= 0:
+					target_ally = ally
+				elif ally.poison_dot > 0 and target_ally.poison_dot > 0 and ally.poison_dot > target_ally.poison_dot:
+					target_ally = ally
+				elif ally.poison_dot <= 0 and target_ally.poison_dot <= 0 and ally.current_hp < target_ally.current_hp:
+					target_ally = ally
+			if target_ally:
 				var heal_amount := int(unit.damage * 8.0)
-				weakest.current_hp = mini(weakest.current_hp + heal_amount, weakest.max_hp)
-				weakest.health_bar.value = weakest.current_hp
-				weakest.crit_vulnerability = 0.0
-				var t_name := weakest.display_name if weakest.display_name != "" else weakest.unit_data.unit_name
-				combat_event.emit("[color=%s]%s casts %s on %s — heals %d & purifies![/color]" % [team_tag, u_name, ab_name, t_name, heal_amount])
+				target_ally.current_hp = mini(target_ally.current_hp + heal_amount, target_ally.max_hp)
+				target_ally.health_bar.value = target_ally.current_hp
+				target_ally.crit_vulnerability = 0.0
+				var had_poison := target_ally.poison_dot > 0
+				target_ally.poison_dot = 0
+				var t_name := target_ally.display_name if target_ally.display_name != "" else target_ally.unit_data.unit_name
+				var msg := "[color=%s]%s casts %s on %s — heals %d" % [team_tag, u_name, ab_name, t_name, heal_amount]
+				if had_poison:
+					msg += " & cleanses poison"
+				msg += "![/color]"
+				combat_event.emit(msg)
 			AudioManager.play("heal")
 
 		# ── Warlock ──
@@ -553,21 +678,32 @@ func _trigger_ability(unit: Unit) -> void:
 			combat_event.emit(msg)
 			AudioManager.play("ability")
 
-		# ── Paladin ──
+		# ── Paladin ── (cleanses corrosive)
 		"paladin_aegis":
 			var allies := board.get_units_on_team(unit.team)
-			var armor_restore := int(unit.damage * 3.0)
 			var buffed := 0
+			var cleansed := 0
 			for ally in allies:
 				if ally.is_dead:
 					continue
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
-				ally.armor = mini(ally.armor + armor_restore, ally.max_armor)
+				ally.armor += 5
+				ally.max_armor = maxi(ally.max_armor, ally.armor)
+				ally.armor_effectiveness += 0.15
 				ally._update_armor_bar()
 				ally.damage += 2
 				buffed += 1
-			combat_event.emit("[color=%s]%s casts %s — restores %d armor & +2 dmg to %d allies![/color]" % [team_tag, u_name, ab_name, armor_restore, buffed])
+				if ally.corrosive_dot > 0:
+					ally.corrosive_dot = 0
+					ally.restore_armor()
+					ally._update_armor_bar()
+					cleansed += 1
+			var msg := "[color=%s]%s casts %s — +5 armor, +15%% armor power & +2 dmg to %d allies!" % [team_tag, u_name, ab_name, buffed]
+			if cleansed > 0:
+				msg += " Cleanses corrosive from %d!" % cleansed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("heal")
 		"paladin_smite":
 			var smite_target := board.find_nearest_enemy(unit)
@@ -590,6 +726,7 @@ func _trigger_ability(unit: Unit) -> void:
 			var cons_dmg := int(unit.damage * 1.5)
 			var heal_amount := int(unit.damage * 1.5)
 			var hit_count := 0
+			var cleansed := 0
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
@@ -604,7 +741,16 @@ func _trigger_ability(unit: Unit) -> void:
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
 					ally.health_bar.value = ally.current_hp
-			combat_event.emit("[color=%s]%s casts %s — hits %d enemies for %d, heals nearby allies![/color]" % [team_tag, u_name, ab_name, hit_count, cons_dmg])
+					if ally.corrosive_dot > 0:
+						ally.corrosive_dot = 0
+						ally.restore_armor()
+						ally._update_armor_bar()
+						cleansed += 1
+			var msg := "[color=%s]%s casts %s — hits %d enemies for %d, heals nearby allies!" % [team_tag, u_name, ab_name, hit_count, cons_dmg]
+			if cleansed > 0:
+				msg += " Cleanses corrosive from %d!" % cleansed
+			msg += "[/color]"
+			combat_event.emit(msg)
 			AudioManager.play("heal")
 
 		# ── Archer ──
