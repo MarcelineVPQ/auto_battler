@@ -11,6 +11,8 @@ const TICK_INTERVAL: float = 0.5
 var board: Board
 var is_fighting: bool = false
 var tick_timer: float = 0.0
+var combat_elapsed: float = 0.0
+var survival_times: Dictionary = {}  # display_name -> seconds survived
 var archer_data: UnitData = preload("res://resources/units/archer.tres")
 var tank_data: UnitData = preload("res://resources/units/tank.tres")
 var warlock_data: UnitData = preload("res://resources/units/warlock.tres")
@@ -21,6 +23,8 @@ func setup(b: Board) -> void:
 func start_combat() -> void:
 	is_fighting = true
 	tick_timer = 0.0
+	combat_elapsed = 0.0
+	survival_times.clear()
 	for unit in board.all_units:
 		unit.attack_timer = 0.0
 		unit.ability_timer = 0.0
@@ -28,9 +32,21 @@ func start_combat() -> void:
 			# Primed units start with full mana — ability fires immediately
 			unit.current_mana = unit.max_mana
 			unit._update_mana_bar()
+		# Track survival time for player units
+		if unit.team == Unit.Team.PLAYER:
+			unit.died.connect(_on_player_unit_died, CONNECT_ONE_SHOT)
 
 func stop_combat() -> void:
 	is_fighting = false
+
+func _on_player_unit_died(unit: Unit) -> void:
+	if unit.display_name != "":
+		survival_times[unit.display_name] = combat_elapsed
+
+func _record_surviving_player_times() -> void:
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		if not unit.is_dead and unit.display_name != "":
+			survival_times[unit.display_name] = combat_elapsed
 
 func _process(delta: float) -> void:
 	if not is_fighting:
@@ -42,16 +58,20 @@ func _process(delta: float) -> void:
 		_process_tick()
 
 func _process_tick() -> void:
+	combat_elapsed += TICK_INTERVAL
+
 	var player_units := board.get_units_on_team(Unit.Team.PLAYER)
 	var enemy_units := board.get_units_on_team(Unit.Team.ENEMY)
 
 	# Win/lose check
 	if player_units.is_empty():
 		is_fighting = false
+		_record_surviving_player_times()
 		combat_ended.emit(false)
 		return
 	if enemy_units.is_empty():
 		is_fighting = false
+		_record_surviving_player_times()
 		combat_ended.emit(true)
 		return
 
@@ -73,6 +93,14 @@ func _process_tick() -> void:
 			unit.max_mana
 		)
 		unit._update_mana_bar()
+
+		# HP regen
+		if unit.hp_regen_per_second > 0.0 and unit.current_hp < unit.max_hp:
+			unit.current_hp = mini(
+				unit.current_hp + int(unit.hp_regen_per_second * TICK_INTERVAL),
+				unit.max_hp
+			)
+			unit.health_bar.value = unit.current_hp
 
 		# Ability trigger: when mana is full, fire ability and reset
 		if unit.current_mana >= unit.max_mana:

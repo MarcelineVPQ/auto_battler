@@ -22,6 +22,7 @@ extends Resource
 @export var max_mana: int = 5
 @export var mana_cost_per_attack: int = 5
 @export var mana_regen_per_second: float = 2.5
+@export var hp_regen_per_second: float = 0.0
 @export var ability_name: String = ""
 @export var ability_desc: String = ""
 @export var ability_cooldown: float = 5.0

@@ -48,7 +48,12 @@ var max_mana: int
 var current_mana: int
 var mana_cost_per_attack: int
 var mana_regen_per_second: float
+var hp_regen_per_second: float
 var ability_cooldown: float
+
+# Accumulated survival regen bonuses (earned from surviving battles)
+var survival_hp_regen_bonus: float = 0.0
+var survival_mana_regen_bonus: float = 0.0
 
 # Timers
 var attack_timer: float = 0.0
@@ -81,6 +86,7 @@ func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	current_mana = 0
 	mana_cost_per_attack = data.mana_cost_per_attack
 	mana_regen_per_second = data.mana_regen_per_second
+	hp_regen_per_second = data.hp_regen_per_second
 	ability_cooldown = data.ability_cooldown
 
 func _ready() -> void:

@@ -15,6 +15,19 @@ extends Node2D
 
 var unit_scene: PackedScene = preload("res://scenes/unit/unit.tscn")
 
+# Class color palette for UI cards
+const CLASS_COLORS: Dictionary = {
+	"Grunt": Color(0.85, 0.45, 0.25),
+	"Tank": Color(0.45, 0.55, 0.7),
+	"Archer": Color(0.35, 0.75, 0.35),
+	"Assassin": Color(0.65, 0.3, 0.7),
+	"Warlock": Color(0.6, 0.25, 0.85),
+	"Priest": Color(0.95, 0.9, 0.5),
+	"Herbalist": Color(0.3, 0.8, 0.45),
+	"Summoner": Color(0.3, 0.7, 0.85),
+	"Paladin": Color(1.0, 0.8, 0.3),
+}
+
 # Hero data pool
 var hero_pool: Array[UnitData] = [
 	preload("res://resources/units/warlock.tres"),
@@ -293,6 +306,13 @@ func _build_wave_select_ui() -> void:
 
 	wave_panel = PanelContainer.new()
 	wave_panel.custom_minimum_size = Vector2(780, 260)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	panel_style.border_color = Color(0.6, 0.6, 0.7, 0.8)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(6)
+	panel_style.set_content_margin_all(16)
+	wave_panel.add_theme_stylebox_override("panel", panel_style)
 	center.add_child(wave_panel)
 
 	var vbox := VBoxContainer.new()
@@ -314,42 +334,97 @@ func _build_wave_select_ui() -> void:
 func _show_wave_select() -> void:
 	wave_options = _generate_wave_options()
 	wave_title.text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
-
-	for child in wave_cards_container.get_children():
-		child.queue_free()
-
-	for i in range(3):
-		var wave: Dictionary = wave_options[i]
-		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 180)
-		btn.text = "%s\n\n%s\n\n%d units (%d farms)\nStrategy: %s" % [
-			wave.name, wave.enemy_text, wave.total_units, wave.total_farms, wave.strategy
-		]
-		var idx := i
-		btn.pressed.connect(func(): _on_wave_selected(idx))
-		wave_cards_container.add_child(btn)
-
+	_populate_wave_cards()
 	wave_overlay.visible = true
 
 func _show_wave_select_rematch() -> void:
-	# Same as _show_wave_select but reuses existing wave_options (no new generation)
 	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	_populate_wave_cards()
+	wave_overlay.visible = true
 
+func _populate_wave_cards() -> void:
 	for child in wave_cards_container.get_children():
 		child.queue_free()
 
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 180)
-		btn.text = "%s\n\n%s\n\n%d units (%d farms)\nStrategy: %s" % [
-			wave.name, wave.enemy_text, wave.total_units, wave.total_farms, wave.strategy
-		]
+		btn.custom_minimum_size = Vector2(240, 200)
+
+		var card := VBoxContainer.new()
+		card.add_theme_constant_override("separation", 4)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+		# Strategy title
+		var title := Label.new()
+		title.text = wave.name
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title.add_theme_font_size_override("font_size", 15)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(title)
+
+		# Icon row — one icon per unique enemy class in the wave
+		var icon_row := HBoxContainer.new()
+		icon_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		icon_row.add_theme_constant_override("separation", 4)
+		icon_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var seen_classes: Dictionary = {}
+		for entry in wave.enemies:
+			var data: UnitData = entry.data
+			if seen_classes.has(data.unit_class):
+				continue
+			seen_classes[data.unit_class] = true
+			if data.texture:
+				var tex := TextureRect.new()
+				tex.texture = data.texture
+				tex.custom_minimum_size = Vector2(28, 28)
+				tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				tex.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+				tex.modulate = CLASS_COLORS.get(data.unit_class, Color.WHITE)
+				tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				icon_row.add_child(tex)
+		card.add_child(icon_row)
+
+		# Enemy composition text
+		var comp := Label.new()
+		comp.text = wave.enemy_text
+		comp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		comp.add_theme_font_size_override("font_size", 12)
+		comp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(comp)
+
+		# Enemy buffs — compute max level in the wave and show scaling
+		var max_lvl := 1
+		for entry in wave.enemies:
+			var lvl: int = entry.get("level", 1)
+			if lvl > max_lvl:
+				max_lvl = lvl
+		if max_lvl > 1:
+			var dmg_pct := int((max_lvl - 1) * 45)
+			var spd_pct := int((max_lvl - 1) * 18)
+			var buffs := Label.new()
+			buffs.text = "Buffs: +%d%% DMG/HP, +%d%% ATK spd" % [dmg_pct, spd_pct]
+			buffs.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			buffs.add_theme_font_size_override("font_size", 10)
+			buffs.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
+			buffs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(buffs)
+
+		# Summary line
+		var summary := Label.new()
+		summary.text = "%d units (%d farms) — %s" % [wave.total_units, wave.total_farms, wave.strategy]
+		summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		summary.add_theme_font_size_override("font_size", 11)
+		summary.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(summary)
+
+		btn.add_child(card)
 		var idx := i
 		btn.pressed.connect(func(): _on_wave_selected(idx))
 		wave_cards_container.add_child(btn)
-
-	wave_overlay.visible = true
 
 func _hide_wave_select() -> void:
 	wave_overlay.visible = false
@@ -557,6 +632,7 @@ func _update_shop_display() -> void:
 		var slot: Dictionary = shop_slots[i]
 		var btn: Button = shop_buttons[i]
 		btn.modulate = Color(1, 1, 1)
+		btn.icon = null
 		if slot.sold:
 			btn.text = "SOLD"
 			btn.disabled = true
@@ -567,6 +643,13 @@ func _update_shop_display() -> void:
 				label += "\n\nAuto: Use as EXP\n(Shift: new copy)"
 			btn.text = label
 			btn.disabled = false
+			# Hero icon and class color tint
+			if data.texture:
+				btn.icon = data.texture
+				btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				btn.expand_icon = true
+			var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color.WHITE)
+			btn.modulate = cls_color.lightened(0.4)
 		else:
 			var upgrade: Dictionary = slot.data
 			var class_text := ""
@@ -1050,6 +1133,8 @@ func _save_squad() -> void:
 			"instance_ability_desc": unit.instance_ability_desc,
 			"stat_purchases": unit.stat_purchases.duplicate(),
 			"applied_upgrades": saved_upgrades,
+			"survival_hp_regen_bonus": unit.survival_hp_regen_bonus,
+			"survival_mana_regen_bonus": unit.survival_mana_regen_bonus,
 			"stats": {
 				"damage": unit.damage,
 				"max_hp": unit.max_hp,
@@ -1064,7 +1149,8 @@ func _save_squad() -> void:
 				"skill_proc_chance": unit.skill_proc_chance,
 				"max_mana": unit.max_mana,
 				"mana_cost_per_attack": unit.mana_cost_per_attack,
-				"mana_regen_per_second": unit.mana_regen_per_second,
+				"mana_regen_per_second": unit.mana_regen_per_second - unit.survival_mana_regen_bonus,
+				"hp_regen_per_second": unit.hp_regen_per_second - unit.survival_hp_regen_bonus,
 			}
 		})
 
@@ -1085,6 +1171,8 @@ func _restore_squad() -> void:
 		if entry.has("instance_ability_desc"):
 			unit.instance_ability_desc = entry.instance_ability_desc
 		unit.stat_purchases = entry.get("stat_purchases", {}).duplicate()
+		unit.survival_hp_regen_bonus = entry.get("survival_hp_regen_bonus", 0.0)
+		unit.survival_mana_regen_bonus = entry.get("survival_mana_regen_bonus", 0.0)
 		var saved_upgrades: Array = entry.get("applied_upgrades", [])
 		for upg in saved_upgrades:
 			unit.applied_upgrades.append(upg.duplicate())
@@ -1105,7 +1193,8 @@ func _restore_squad() -> void:
 			unit.max_mana = s.max_mana
 			unit.current_mana = 0
 			unit.mana_cost_per_attack = s.mana_cost_per_attack
-			unit.mana_regen_per_second = s.mana_regen_per_second
+			unit.mana_regen_per_second = s.mana_regen_per_second + unit.survival_mana_regen_bonus
+			unit.hp_regen_per_second = s.get("hp_regen_per_second", 0.0) + unit.survival_hp_regen_bonus
 			unit.health_bar.max_value = s.max_hp
 			unit.health_bar.value = s.max_hp
 			unit._update_armor_bar()
@@ -1298,6 +1387,7 @@ func _on_ready_pressed() -> void:
 	AudioManager.play("round_start")
 
 func _on_combat_ended(player_won: bool) -> void:
+	_apply_survival_regen_bonuses()
 	var is_first_loss := not player_won and not GameManager.first_loss_given
 	GameManager.end_battle(player_won)
 	if player_won:
@@ -1332,6 +1422,22 @@ func _show_return_to_menu_button() -> void:
 		get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	)
 	ui_layer.add_child(btn)
+
+func _apply_survival_regen_bonuses() -> void:
+	for entry in player_squad:
+		var unit_name: String = entry.get("display_name", "")
+		if unit_name == "" or not combat_system.survival_times.has(unit_name):
+			continue
+		var survived_seconds: float = combat_system.survival_times[unit_name]
+		var hp_regen_earned: float = survived_seconds / 10.0 * 0.5
+		var mana_regen_earned: float = survived_seconds / 10.0 * 0.1
+		entry.survival_hp_regen_bonus = entry.get("survival_hp_regen_bonus", 0.0) + hp_regen_earned
+		entry.survival_mana_regen_bonus = entry.get("survival_mana_regen_bonus", 0.0) + mana_regen_earned
+		# Update saved stats to include new bonuses
+		if entry.has("stats"):
+			entry.stats.hp_regen_per_second = entry.stats.get("hp_regen_per_second", 0.0) + hp_regen_earned
+			entry.stats.mana_regen_per_second = entry.stats.mana_regen_per_second + mana_regen_earned
+		_on_combat_event("[color=yellow]%s survived %.0fs — earned +%.1f HP regen/s, +%.1f mana regen/s[/color]" % [unit_name, survived_seconds, hp_regen_earned, mana_regen_earned])
 
 func _start_next_round() -> void:
 	board.clear_all()
@@ -1451,6 +1557,18 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "move_speed", "Move Speed", "%.0f" % unit.move_speed, can_buy, 5.0)
 	_add_stat_row(unit, "crit_chance", "Crit", "%.0f%%" % unit.crit_chance, can_buy, 1.0)
 	_add_stat_row(unit, "skill_proc_chance", "Skill Proc", "%.0f%%" % unit.skill_proc_chance, can_buy, 1.0)
+
+	# Survival Regen section (shown only when nonzero)
+	if unit.survival_hp_regen_bonus > 0.0 or unit.survival_mana_regen_bonus > 0.0:
+		info_panel.add_child(HSeparator.new())
+		var regen_header := Label.new()
+		regen_header.add_theme_font_size_override("font_size", 14)
+		regen_header.text = "Survival Regen:"
+		info_panel.add_child(regen_header)
+		if unit.survival_hp_regen_bonus > 0.0:
+			_add_stat_display("HP Regen/s", "+%.1f" % unit.survival_hp_regen_bonus)
+		if unit.survival_mana_regen_bonus > 0.0:
+			_add_stat_display("Mana Regen bonus", "+%.1f" % unit.survival_mana_regen_bonus)
 
 	# Applied upgrades section — stacked with repurchase buttons
 	info_panel.add_child(HSeparator.new())
