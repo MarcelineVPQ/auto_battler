@@ -409,10 +409,16 @@ func _build_wave_select_ui() -> void:
 
 func _show_wave_select() -> void:
 	wave_options = _generate_wave_options()
-	wave_title.text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	var title := "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	if GameManager.current_round % 5 == 0:
+		title += "  —  +1 Life!"
+	wave_title.text = title
 	wave_dps_label.text = "Your Squad DPS: %.1f" % _get_squad_dps()
 	_populate_wave_cards()
 	wave_overlay.visible = true
+	if GameManager.current_round % 5 == 0:
+		_show_warning("+1 Life gained!")
+		AudioManager.play("victory")
 
 func _show_wave_select_rematch() -> void:
 	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
