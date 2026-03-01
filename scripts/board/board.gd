@@ -80,9 +80,10 @@ func _draw() -> void:
 		draw_arc(m_pos, 32.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.9), 3.0)
 		draw_arc(m_pos, 36.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.4), 1.5)
 
-	# Draw attack range circle for selected unit
+	# Draw range circles for selected unit
 	if selected_unit and is_instance_valid(selected_unit) and not selected_unit.is_dead:
 		var local_pos := selected_unit.position
+		# Attack range — solid blue circle
 		draw_arc(local_pos, selected_unit.attack_range, 0, TAU, 64, Color(0.5, 0.8, 1.0, 0.4), 2.0)
 		draw_string(
 			ThemeDB.fallback_font,
@@ -90,6 +91,22 @@ func _draw() -> void:
 			"Attack Range",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
 			Color(0.5, 0.8, 1.0, 0.6)
+		)
+		# Ability range — dashed gold circle
+		var abl_r: float = selected_unit.ability_range
+		var dash_count := 24
+		var dash_arc := TAU / float(dash_count) * 0.6
+		var gap_arc := TAU / float(dash_count) * 0.4
+		var abl_color := Color(1.0, 0.82, 0.3, 0.45)
+		for i in dash_count:
+			var start_angle := float(i) * (dash_arc + gap_arc)
+			draw_arc(local_pos, abl_r, start_angle, start_angle + dash_arc, 8, abl_color, 2.0)
+		draw_string(
+			ThemeDB.fallback_font,
+			local_pos + Vector2(-40, -abl_r - 6),
+			"Ability Range",
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
+			Color(1.0, 0.82, 0.3, 0.6)
 		)
 
 # Returns the center position of a grid cell
