@@ -1,19 +1,20 @@
 class_name Board
 extends Node2D
 
-const ARENA_WIDTH: float = 860.0
-const ARENA_HEIGHT: float = 380.0
+const ARENA_WIDTH: float = 960.0
+const ARENA_HEIGHT: float = 480.0
 const DIVIDER_X: float = ARENA_WIDTH / 2.0
 
-# Placement grid (5x5 within player half — sized to fit unit visuals)
-const GRID_COLS: int = 5
-const GRID_ROWS: int = 5
-const GRID_CELL_W: float = DIVIDER_X / GRID_COLS   # ~86
-const GRID_CELL_H: float = ARENA_HEIGHT / GRID_ROWS # ~76
-const GRID_DOT_RADIUS: float = 6.0
+# Placement grid (8x8 within each half — 60x60 cells)
+const GRID_COLS: int = 8
+const GRID_ROWS: int = 8
+const GRID_CELL_W: float = DIVIDER_X / GRID_COLS   # 60
+const GRID_CELL_H: float = ARENA_HEIGHT / GRID_ROWS # 60
+const GRID_DOT_RADIUS: float = 5.0
 
 var all_units: Array[Unit] = []
 var selected_unit: Unit = null
+var merge_highlight_unit: Unit = null
 var show_grid: bool = false
 var targeting_mode: bool = false
 
@@ -49,14 +50,22 @@ func _draw() -> void:
 	if show_grid:
 		for col in range(GRID_COLS):
 			for row in range(GRID_ROWS):
+				# Player grid dots (left half)
 				var dot_pos := _grid_cell_center(col, row)
-				# Check if another unit occupies this slot
 				var occupied := _is_grid_slot_occupied(col, row)
 				if occupied:
 					draw_circle(dot_pos, GRID_DOT_RADIUS, Color(1, 1, 1, 0.1))
 				else:
 					draw_circle(dot_pos, GRID_DOT_RADIUS, Color(1, 1, 1, 0.35))
 					draw_arc(dot_pos, GRID_DOT_RADIUS, 0, TAU, 16, Color(1, 1, 1, 0.5), 1.0)
+				# Enemy grid dots (right half, reddish tint)
+				var enemy_dot := _enemy_grid_cell_center(col, row)
+				var e_occupied := _is_enemy_grid_slot_occupied(col, row)
+				if e_occupied:
+					draw_circle(enemy_dot, GRID_DOT_RADIUS, Color(1, 0.4, 0.3, 0.1))
+				else:
+					draw_circle(enemy_dot, GRID_DOT_RADIUS, Color(1, 0.4, 0.3, 0.25))
+					draw_arc(enemy_dot, GRID_DOT_RADIUS, 0, TAU, 16, Color(1, 0.4, 0.3, 0.35), 1.0)
 
 	# Draw green rings around player units during upgrade targeting
 	if targeting_mode:
@@ -64,6 +73,12 @@ func _draw() -> void:
 			if unit.is_dead or unit.team != Unit.Team.PLAYER:
 				continue
 			draw_arc(unit.position, 28.0, 0, TAU, 32, Color(0.2, 1.0, 0.3, 0.7), 2.0)
+
+	# Draw gold ring around merge target
+	if merge_highlight_unit and is_instance_valid(merge_highlight_unit) and not merge_highlight_unit.is_dead:
+		var m_pos := merge_highlight_unit.position
+		draw_arc(m_pos, 32.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.9), 3.0)
+		draw_arc(m_pos, 36.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.4), 1.5)
 
 	# Draw attack range circle for selected unit
 	if selected_unit and is_instance_valid(selected_unit) and not selected_unit.is_dead:
@@ -103,6 +118,38 @@ func snap_to_grid(pos: Vector2, exclude: Unit = null) -> Vector2:
 			if _is_grid_slot_occupied(col, row, exclude):
 				continue
 			var center := _grid_cell_center(col, row)
+			var dist := pos.distance_to(center)
+			if dist < best_dist:
+				best_dist = dist
+				best_pos = center
+	return best_pos
+
+# Returns the center position of an enemy grid cell (right half)
+func _enemy_grid_cell_center(col: int, row: int) -> Vector2:
+	return Vector2(
+		DIVIDER_X + col * GRID_CELL_W + GRID_CELL_W / 2.0,
+		row * GRID_CELL_H + GRID_CELL_H / 2.0
+	)
+
+# Check if an enemy grid slot is occupied
+func _is_enemy_grid_slot_occupied(col: int, row: int, exclude: Unit = null) -> bool:
+	var center := _enemy_grid_cell_center(col, row)
+	for unit in all_units:
+		if unit == exclude or unit.is_dead or unit.team != Unit.Team.ENEMY:
+			continue
+		if unit.position.distance_to(center) < GRID_CELL_W * 0.4:
+			return true
+	return false
+
+# Snap a position to the nearest enemy grid cell center
+func snap_to_enemy_grid(pos: Vector2, exclude: Unit = null) -> Vector2:
+	var best_pos := pos
+	var best_dist := INF
+	for col in range(GRID_COLS):
+		for row in range(GRID_ROWS):
+			if _is_enemy_grid_slot_occupied(col, row, exclude):
+				continue
+			var center := _enemy_grid_cell_center(col, row)
 			var dist := pos.distance_to(center)
 			if dist < best_dist:
 				best_dist = dist

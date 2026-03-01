@@ -170,6 +170,7 @@ const SLASH_MAP: Dictionary = {
 	"Grunt": "slash",
 	"Tank": "slash",
 	"Assassin": "slash_assassin",
+	"Paladin": "slash",
 }
 
 func _trigger_ability(unit: Unit) -> void:
@@ -242,6 +243,18 @@ func _trigger_ability(unit: Unit) -> void:
 			unit.crit_chance += 50.0
 			combat_event.emit("[color=%s]%s prepares Shadowstrike — next hit is lethal![/color]" % [team_tag, u_name])
 			AudioManager.play("ability")
+		"Paladin":
+			# Holy Aegis: restore armor to all allies, +2 damage buff
+			var allies := board.get_units_on_team(unit.team)
+			var armor_restore := int(unit.damage * 3.0)
+			for ally in allies:
+				if ally.is_dead:
+					continue
+				ally.armor = mini(ally.armor + armor_restore, ally.max_armor)
+				ally._update_armor_bar()
+				ally.damage += 2
+			combat_event.emit("[color=%s]%s casts %s — restores %d armor & +2 dmg to all allies![/color]" % [team_tag, u_name, unit.unit_data.ability_name, armor_restore])
+			AudioManager.play("heal")
 		"Archer":
 			# Volley: hit all enemies for reduced damage
 			var enemies := board.get_units_on_team(

@@ -29,6 +29,7 @@ var farms: int = STARTING_FARMS
 var farm_purchases: int = 0
 var last_round_won: bool = false
 var gold_snapshot: int = 0
+var first_loss_given: bool = false
 
 func change_phase(new_phase: Phase) -> void:
 	current_phase = new_phase
@@ -47,6 +48,9 @@ func end_battle(player_won: bool) -> void:
 			game_over.emit()
 		else:
 			gold = gold_snapshot
+			if not first_loss_given:
+				first_loss_given = true
+				gold += 50
 			gold_changed.emit(gold)
 	round_ended.emit(player_won)
 
@@ -103,6 +107,7 @@ func reset() -> void:
 	farm_purchases = 0
 	last_round_won = false
 	gold_snapshot = 0
+	first_loss_given = false
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
 	farms_changed.emit()

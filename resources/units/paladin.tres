@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3 uid="uid://cpald0000001a"]
+
+[ext_resource type="Script" uid="uid://c62m00aggac0u" path="res://scripts/data/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/icons/paladin.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+unit_name = "Cedric"
+unit_class = "Paladin"
+farm_cost = 2
+pop_cost = 2
+max_hp = 150
+damage = 6
+attacks_per_second = 0.8
+attack_range = 80.0
+move_speed = 40.0
+armor = 20
+evasion = 0.0
+crit_chance = 3.0
+skill_proc_chance = 3.0
+max_mana = 20
+mana_cost_per_attack = 4
+mana_regen_per_second = 1.5
+ability_name = "Holy Aegis"
+ability_desc = "Restores 300% damage as armor to all allies, +2 damage buff"
+ability_cooldown = 6.0
+skill_name = ""
+skill_desc = ""
+boosted_stats = []
+texture = ExtResource("2")

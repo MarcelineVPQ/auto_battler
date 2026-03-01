@@ -25,6 +25,7 @@ var hero_pool: Array[UnitData] = [
 	preload("res://resources/units/archer.tres"),
 	preload("res://resources/units/assassin.tres"),
 	preload("res://resources/units/summoner.tres"),
+	preload("res://resources/units/paladin.tres"),
 ]
 
 # Upgrade definitions
@@ -73,6 +74,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Soul Rend", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +3 max mana", "stat": "soul_rend", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Divine Covenant", "cost": 12, "rarity": "Rare", "desc": "+30 HP, +3 max mana", "stat": "divine_covenant", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Toxic Mastery", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +5% skill proc", "stat": "toxic_mastery", "amount": 1.0, "class_req": "Herbalist"},
+	{"name": "Holy Vanguard", "cost": 12, "rarity": "Rare", "desc": "+20 armor, +3 dmg", "stat": "holy_vanguard", "amount": 1.0, "class_req": "Paladin"},
 	# ── Epic Hero-Specific (18g, round 11+) ──
 	{"name": "Rampage", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +0.3 atk/s, +20 HP", "stat": "rampage", "amount": 1.0, "class_req": "Grunt"},
 	{"name": "Hawkeye", "cost": 18, "rarity": "Epic", "desc": "+12 dmg, +120 range, +8% crit", "stat": "hawkeye", "amount": 1.0, "class_req": "Archer"},
@@ -81,27 +83,28 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Dark Pact", "cost": 18, "rarity": "Epic", "desc": "+15 dmg, +5 max mana", "stat": "dark_pact", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Ascension", "cost": 18, "rarity": "Epic", "desc": "+50 HP, +5 max mana, +5 dmg", "stat": "ascension", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Plague Lord", "cost": 18, "rarity": "Epic", "desc": "+10 dmg, +8% skill proc, +15 armor", "stat": "plague_lord", "amount": 1.0, "class_req": "Herbalist"},
+	{"name": "Divine Bulwark", "cost": 18, "rarity": "Epic", "desc": "+30 armor, +40 HP, +5 dmg", "stat": "divine_bulwark", "amount": 1.0, "class_req": "Paladin"},
 ]
 
 # Wave strategy definitions — each describes the enemy team composition
 # "weights" map unit_class to relative pick chance; "label" describes the mix
 var wave_strategies: Array[Dictionary] = [
 	{"label": "Frontline Defense", "strategy": "concentrated",
-	 "weights": {"Tank": 5, "Priest": 2, "Warlock": 1, "Herbalist": 1, "Grunt": 3, "Archer": 0, "Assassin": 0, "Summoner": 0}},
+	 "weights": {"Tank": 5, "Priest": 2, "Warlock": 1, "Herbalist": 1, "Grunt": 3, "Archer": 0, "Assassin": 0, "Summoner": 0, "Paladin": 2}},
 	{"label": "Glass Cannon", "strategy": "spread",
-	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 4, "Herbalist": 4, "Grunt": 0, "Archer": 3, "Assassin": 2, "Summoner": 1}},
+	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 4, "Herbalist": 4, "Grunt": 0, "Archer": 3, "Assassin": 2, "Summoner": 1, "Paladin": 0}},
 	{"label": "Arcane Assault", "strategy": "concentrated",
-	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 5, "Herbalist": 2, "Grunt": 1, "Archer": 2, "Assassin": 0, "Summoner": 2}},
+	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 5, "Herbalist": 2, "Grunt": 1, "Archer": 2, "Assassin": 0, "Summoner": 2, "Paladin": 1}},
 	{"label": "Holy Guard", "strategy": "many",
-	 "weights": {"Tank": 3, "Priest": 5, "Warlock": 1, "Herbalist": 1, "Grunt": 2, "Archer": 0, "Assassin": 0, "Summoner": 1}},
+	 "weights": {"Tank": 3, "Priest": 5, "Warlock": 1, "Herbalist": 1, "Grunt": 2, "Archer": 0, "Assassin": 0, "Summoner": 1, "Paladin": 3}},
 	{"label": "Poison Swarm", "strategy": "many",
-	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 1, "Herbalist": 5, "Grunt": 1, "Archer": 1, "Assassin": 1, "Summoner": 0}},
+	 "weights": {"Tank": 1, "Priest": 1, "Warlock": 1, "Herbalist": 5, "Grunt": 1, "Archer": 1, "Assassin": 1, "Summoner": 0, "Paladin": 1}},
 	{"label": "Balanced Army", "strategy": "spread",
-	 "weights": {"Tank": 3, "Priest": 3, "Warlock": 3, "Herbalist": 3, "Grunt": 3, "Archer": 3, "Assassin": 3, "Summoner": 1}},
+	 "weights": {"Tank": 3, "Priest": 3, "Warlock": 3, "Herbalist": 3, "Grunt": 3, "Archer": 3, "Assassin": 3, "Summoner": 1, "Paladin": 3}},
 	{"label": "Blitz Rush", "strategy": "concentrated",
-	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 0, "Herbalist": 1, "Grunt": 5, "Archer": 1, "Assassin": 4, "Summoner": 0}},
+	 "weights": {"Tank": 0, "Priest": 1, "Warlock": 0, "Herbalist": 1, "Grunt": 5, "Archer": 1, "Assassin": 4, "Summoner": 0, "Paladin": 1}},
 	{"label": "Sniper Nest", "strategy": "spread",
-	 "weights": {"Tank": 2, "Priest": 1, "Warlock": 1, "Herbalist": 1, "Grunt": 1, "Archer": 5, "Assassin": 1, "Summoner": 1}},
+	 "weights": {"Tank": 2, "Priest": 1, "Warlock": 1, "Herbalist": 1, "Grunt": 1, "Archer": 5, "Assassin": 1, "Summoner": 1, "Paladin": 1}},
 ]
 
 # Squad persistence — saves runtime stats between rounds
@@ -129,6 +132,7 @@ var shop_buttons: Array[Button] = []
 var reroll_button: Button
 var freeze_button: Button
 var sell_button: Button
+var action_bar: HBoxContainer
 
 # Shop freeze state
 var shop_frozen: bool = false
@@ -188,7 +192,7 @@ func _build_warning_label() -> void:
 	warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	warning_label.add_theme_font_size_override("font_size", 18)
 	warning_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	warning_label.position = Vector2(330, 395)
+	warning_label.position = Vector2(380, 495)
 	warning_label.size = Vector2(300, 30)
 	warning_label.visible = false
 	ui_layer.add_child(warning_label)
@@ -209,19 +213,19 @@ func _build_battle_ui() -> void:
 	# Strength bar — tug-of-war HP bar below TopBar
 	strength_bar_container = HBoxContainer.new()
 	strength_bar_container.position = Vector2(55, 42)
-	strength_bar_container.custom_minimum_size = Vector2(860, 8)
+	strength_bar_container.custom_minimum_size = Vector2(960, 8)
 	strength_bar_container.add_theme_constant_override("separation", 0)
 	ui_layer.add_child(strength_bar_container)
 
 	strength_bar_player = ColorRect.new()
 	strength_bar_player.color = Color(0.2, 0.4, 1.0)
-	strength_bar_player.custom_minimum_size = Vector2(430, 8)
+	strength_bar_player.custom_minimum_size = Vector2(480, 8)
 	strength_bar_player.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strength_bar_container.add_child(strength_bar_player)
 
 	strength_bar_enemy = ColorRect.new()
 	strength_bar_enemy.color = Color(1.0, 0.2, 0.2)
-	strength_bar_enemy.custom_minimum_size = Vector2(430, 8)
+	strength_bar_enemy.custom_minimum_size = Vector2(480, 8)
 	strength_bar_enemy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strength_bar_container.add_child(strength_bar_enemy)
 
@@ -262,7 +266,7 @@ func _on_tick_completed() -> void:
 	if total <= 0:
 		return
 	var ratio: float = float(player_hp) / float(total)
-	var bar_width: float = 860.0
+	var bar_width: float = Board.ARENA_WIDTH
 	strength_bar_player.custom_minimum_size.x = bar_width * ratio
 	strength_bar_enemy.custom_minimum_size.x = bar_width * (1.0 - ratio)
 
@@ -432,10 +436,11 @@ func _on_wave_selected(idx: int) -> void:
 	for i in range(enemy_count):
 		var entry: Dictionary = enemies[i]
 		var spacing: float = Board.ARENA_HEIGHT / (enemy_count + 1)
-		var pos := Vector2(
-			randf_range(Board.DIVIDER_X + 80, Board.ARENA_WIDTH - 60),
+		var raw_pos := Vector2(
+			randf_range(Board.DIVIDER_X + 60, Board.ARENA_WIDTH - 60),
 			spacing * (i + 1)
 		)
+		var pos := board.snap_to_enemy_grid(raw_pos)
 		var unit := _spawn_unit(entry.data, Unit.Team.ENEMY, pos)
 		# Apply level scaling: each level above 1 boosts stats
 		var lvl: int = entry.get("level", 1)
@@ -462,7 +467,7 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 428)
+	shop_bar.position = Vector2(30, 530)
 	shop_bar.add_theme_constant_override("separation", 8)
 	ui_layer.add_child(shop_bar)
 
@@ -482,23 +487,33 @@ func _build_shop_bar() -> void:
 	shop_bar.add_child(sep)
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
+	# Action buttons — right panel, between Ready and hero stats
+	action_bar = HBoxContainer.new()
+	action_bar.position = Vector2(1010, 248)
+	action_bar.custom_minimum_size = Vector2(260, 0)
+	action_bar.add_theme_constant_override("separation", 4)
+	ui_layer.add_child(action_bar)
+
 	reroll_button = Button.new()
-	reroll_button.custom_minimum_size = Vector2(90, 90)
-	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
+	reroll_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	reroll_button.custom_minimum_size = Vector2(0, 28)
+	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
-	shop_bar.add_child(reroll_button)
+	action_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
-	freeze_button.custom_minimum_size = Vector2(50, 90)
-	freeze_button.text = "F\nFreeze"
+	freeze_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	freeze_button.custom_minimum_size = Vector2(0, 28)
+	freeze_button.text = "Freeze"
 	freeze_button.pressed.connect(_on_freeze_pressed)
-	shop_bar.add_child(freeze_button)
+	action_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
-	sell_button.custom_minimum_size = Vector2(50, 90)
-	sell_button.text = "X\nSell"
+	sell_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sell_button.custom_minimum_size = Vector2(0, 28)
+	sell_button.text = "Sell"
 	sell_button.pressed.connect(_on_sell_pressed)
-	shop_bar.add_child(sell_button)
+	action_bar.add_child(sell_button)
 
 	# Confirm bar (Buy / Cancel) — hidden until a shop card is selected
 	shop_confirm_bar = HBoxContainer.new()
@@ -521,14 +536,10 @@ func _build_shop_bar() -> void:
 func _roll_shop() -> void:
 	_cancel_shop_selection()
 	shop_slots.clear()
-	var hero_weights := {}
+	# Equal weight for all heroes — no round-based suppression in shop
+	var weighted_heroes: Array[UnitData] = []
 	for data in hero_pool:
-		hero_weights[data.unit_class] = 1
-	# Favor combat units in early shop rolls
-	if GameManager.current_round <= 4:
-		hero_weights["Grunt"] = 3
-		hero_weights["Tank"] = 3
-	var weighted_heroes := _build_weighted_pool(hero_weights)
+		weighted_heroes.append(data)
 	for i in range(HERO_SHOP_SLOTS):
 		var data: UnitData = weighted_heroes.pick_random()
 		shop_slots.append({"type": "hero", "data": data, "cost": data.farm_cost, "sold": false})
@@ -571,7 +582,7 @@ func _update_shop_display() -> void:
 		if i == _selected_shop_slot and not slot.sold:
 			btn.modulate = btn.modulate.lightened(0.35)
 
-	reroll_button.text = "Re-roll\n(%dg)" % GameManager.REROLL_COST
+	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
 	_update_freeze_display()
 
@@ -597,6 +608,13 @@ func _select_shop_slot(idx: int) -> void:
 	shop_confirm_bar.position = Vector2(btn_global.x, btn_global.y + btn.size.y + 4)
 	shop_confirm_bar.visible = true
 	_show_shop_preview(idx)
+	# Highlight merge target if buying a duplicate hero
+	var slot: Dictionary = shop_slots[idx]
+	if slot.type == "hero" and not _shift_held_on_select:
+		board.merge_highlight_unit = _find_player_unit_by_class(slot.data.unit_class)
+	else:
+		board.merge_highlight_unit = null
+	board.queue_redraw()
 
 func _cancel_shop_selection() -> void:
 	if _selected_shop_slot < 0:
@@ -604,6 +622,7 @@ func _cancel_shop_selection() -> void:
 	_selected_shop_slot = -1
 	_shift_held_on_select = false
 	shop_confirm_bar.visible = false
+	board.merge_highlight_unit = null
 	_hide_info_panel()
 	_update_shop_display()
 
@@ -614,6 +633,7 @@ func _confirm_shop_purchase() -> void:
 	var slot: Dictionary = shop_slots[idx]
 	_selected_shop_slot = -1
 	shop_confirm_bar.visible = false
+	board.merge_highlight_unit = null
 	if slot.type == "hero":
 		_buy_hero(idx)
 	else:
@@ -681,9 +701,6 @@ func _buy_upgrade(idx: int) -> void:
 	AudioManager.play("buy")
 
 func _apply_pending_upgrade(unit: Unit) -> void:
-	if unit.applied_upgrades.size() >= unit.get_max_upgrades():
-		_show_warning("Unit has max upgrades!")
-		return
 	var slot: Dictionary = shop_slots[_pending_upgrade_slot]
 	var upgrade: Dictionary = slot.data
 
@@ -692,8 +709,26 @@ func _apply_pending_upgrade(unit: Unit) -> void:
 		_show_warning("Wrong unit class!")
 		return
 
+	# Check if unit already has this upgrade — level it up instead of taking a slot
+	var existing_upg: Dictionary = {}
+	for upg in unit.applied_upgrades:
+		if upg.name == upgrade.name:
+			existing_upg = upg
+			break
+
+	if existing_upg.is_empty():
+		# New upgrade — check slot limit
+		if unit.applied_upgrades.size() >= unit.get_max_upgrades():
+			_show_warning("Unit has max upgrades!")
+			return
+		var new_upg := upgrade.duplicate()
+		new_upg.level = 1
+		unit.applied_upgrades.append(new_upg)
+	else:
+		# Level up existing upgrade
+		existing_upg.level = existing_upg.get("level", 1) + 1
+
 	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
-	unit.applied_upgrades.append(upgrade.duplicate())
 	AudioManager.play("upgrade")
 
 	_targeting_upgrade = false
@@ -702,6 +737,23 @@ func _apply_pending_upgrade(unit: Unit) -> void:
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 
 	board.select_unit(unit)
+	_show_info_panel(unit)
+	_update_ui()
+	board.queue_redraw()
+
+func _on_repurchase_upgrade(unit: Unit, upgrade: Dictionary) -> void:
+	if not is_instance_valid(unit) or unit.is_dead:
+		return
+	if not GameManager.spend_gold(upgrade.cost):
+		_show_warning("Not enough gold!")
+		return
+	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
+	# Level up the existing upgrade instead of taking a new slot
+	for upg in unit.applied_upgrades:
+		if upg.name == upgrade.name:
+			upg.level = upg.get("level", 1) + 1
+			break
+	AudioManager.play("upgrade")
 	_show_info_panel(unit)
 	_update_ui()
 	board.queue_redraw()
@@ -733,10 +785,13 @@ func _on_reroll_pressed() -> void:
 
 func _show_shop() -> void:
 	shop_bar.visible = true
+	action_bar.visible = true
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
+	action_bar.visible = false
 	shop_confirm_bar.visible = false
+
 
 # ── Sell ─────────────────────────────────────────────────────
 
@@ -776,10 +831,10 @@ func _toggle_freeze() -> void:
 
 func _update_freeze_display() -> void:
 	if shop_frozen:
-		freeze_button.text = "F\nUnfreeze"
+		freeze_button.text = "Unfreeze"
 		freeze_button.modulate = Color(0.5, 0.8, 1.0)
 	else:
-		freeze_button.text = "F\nFreeze"
+		freeze_button.text = "Freeze"
 		freeze_button.modulate = Color(1, 1, 1)
 
 # ── Stat Upgrades ───────────────────────────────────────────
@@ -848,6 +903,11 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"toxic_mastery":
 			unit.damage += 5
 			unit.skill_proc_chance += 5
+		"holy_vanguard":
+			unit.armor += 20
+			unit.max_armor += 20
+			unit._update_armor_bar()
+			unit.damage += 3
 		# ── Epic Hero-Specific ──
 		"rampage":
 			unit.damage += 10
@@ -891,6 +951,15 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.armor += 15
 			unit.max_armor += 15
 			unit._update_armor_bar()
+		"divine_bulwark":
+			unit.armor += 30
+			unit.max_armor += 30
+			unit._update_armor_bar()
+			unit.max_hp += 40
+			unit.current_hp += 40
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit.damage += 5
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
@@ -1193,13 +1262,17 @@ func _on_ready_pressed() -> void:
 	AudioManager.play("round_start")
 
 func _on_combat_ended(player_won: bool) -> void:
+	var is_first_loss := not player_won and not GameManager.first_loss_given
 	GameManager.end_battle(player_won)
 	if player_won:
 		result_label.text = "VICTORY!"
 		result_label.add_theme_color_override("font_color", Color.GREEN)
 		AudioManager.play("victory")
 	else:
-		result_label.text = "DEFEAT! — Rematch..."
+		if is_first_loss and GameManager.lives > 0:
+			result_label.text = "DEFEAT! — Rematch... (+50g bonus!)"
+		else:
+			result_label.text = "DEFEAT! — Rematch..."
 		result_label.add_theme_color_override("font_color", Color.RED)
 		AudioManager.play("defeat")
 	_update_ui()
@@ -1211,6 +1284,18 @@ func _on_combat_ended(player_won: bool) -> void:
 			get_tree().create_timer(2.0).timeout.connect(_start_rematch)
 	elif GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
 		result_label.text = "GAME COMPLETE!"
+		_show_return_to_menu_button()
+
+func _show_return_to_menu_button() -> void:
+	var btn := Button.new()
+	btn.text = "Return to Menu"
+	btn.custom_minimum_size = Vector2(200, 40)
+	btn.position = Vector2(540, 340)
+	btn.pressed.connect(func():
+		GameManager.reset()
+		get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+	)
+	ui_layer.add_child(btn)
 
 func _start_next_round() -> void:
 	board.clear_all()
@@ -1246,6 +1331,7 @@ func _on_game_over() -> void:
 	ready_button.disabled = true
 	_hide_shop()
 	AudioManager.play("game_over")
+	_show_return_to_menu_button()
 
 # ── Farm Helpers ─────────────────────────────────────────────
 
@@ -1328,17 +1414,36 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "crit_chance", "Crit", "%.0f%%" % unit.crit_chance, can_buy, 1.0)
 	_add_stat_row(unit, "skill_proc_chance", "Skill Proc", "%.0f%%" % unit.skill_proc_chance, can_buy, 1.0)
 
-	# Applied upgrades section
+	# Applied upgrades section — stacked with repurchase buttons
 	info_panel.add_child(HSeparator.new())
 	var upgrades_header := Label.new()
 	upgrades_header.add_theme_font_size_override("font_size", 14)
 	upgrades_header.text = "Upgrades (%d/%d):" % [unit.applied_upgrades.size(), unit.get_max_upgrades()]
 	info_panel.add_child(upgrades_header)
+
+	var at_max: bool = unit.applied_upgrades.size() >= unit.get_max_upgrades()
 	for upg in unit.applied_upgrades:
+		var level: int = upg.get("level", 1)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		if can_buy:
+			var buy_btn := Button.new()
+			buy_btn.text = "+%dg" % upg.cost
+			buy_btn.custom_minimum_size = Vector2(42, 22)
+			buy_btn.add_theme_font_size_override("font_size", 10)
+			buy_btn.disabled = GameManager.gold < upg.cost
+			var u := unit
+			var u_upg := upg.duplicate()
+			buy_btn.pressed.connect(func(): _on_repurchase_upgrade(u, u_upg))
+			row.add_child(buy_btn)
 		var upg_lbl := Label.new()
 		upg_lbl.add_theme_font_size_override("font_size", 12)
-		upg_lbl.text = "  %s — %s" % [upg.name, upg.desc]
-		info_panel.add_child(upg_lbl)
+		if level > 1:
+			upg_lbl.text = "%s Lv%d — %s" % [upg.name, level, upg.desc]
+		else:
+			upg_lbl.text = "%s — %s" % [upg.name, upg.desc]
+		row.add_child(upg_lbl)
+		info_panel.add_child(row)
 
 	info_panel.add_child(HSeparator.new())
 
