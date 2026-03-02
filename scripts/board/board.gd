@@ -17,6 +17,7 @@ var selected_unit: Unit = null
 var merge_highlight_unit: Unit = null
 var show_grid: bool = false
 var targeting_mode: bool = false
+var targeting_class_req: String = ""
 var blood_splats: Array[Node2D] = []
 
 @onready var units_container: Node2D = $Units
@@ -107,6 +108,8 @@ func _draw() -> void:
 	if targeting_mode:
 		for unit in all_units:
 			if unit.is_dead or unit.team != Unit.Team.PLAYER:
+				continue
+			if targeting_class_req != "" and unit.unit_data.unit_class != targeting_class_req:
 				continue
 			draw_arc(unit.position, 28.0, 0, TAU, 32, Color(0.2, 1.0, 0.3, 0.7), 2.0)
 
@@ -229,17 +232,34 @@ func get_units_on_team(team: Unit.Team) -> Array[Unit]:
 			result.append(u)
 	return result
 
+## Target priority classes — healers/supports are high-value targets
+const HIGH_PRIORITY_CLASSES: PackedStringArray = ["Priest", "Herbalist", "Summoner"]
+
 func find_nearest_enemy(unit: Unit) -> Unit:
 	var enemy_team := Unit.Team.PLAYER if unit.team == Unit.Team.ENEMY else Unit.Team.ENEMY
 	var enemies := get_units_on_team(enemy_team)
-	var nearest: Unit = null
-	var best_dist: float = INF
+	if enemies.is_empty():
+		return null
+
+	# Among enemies within attack range, prefer high-priority targets
+	var best_priority: Unit = null
+	var best_priority_dist: float = INF
+	var best_any: Unit = null
+	var best_any_dist: float = INF
+
 	for enemy in enemies:
 		var dist := unit.position.distance_to(enemy.position)
-		if dist < best_dist:
-			best_dist = dist
-			nearest = enemy
-	return nearest
+		# Track overall nearest regardless
+		if dist < best_any_dist:
+			best_any_dist = dist
+			best_any = enemy
+		# Track nearest high-priority target within attack range
+		if dist <= unit.attack_range and enemy.unit_data.unit_class in HIGH_PRIORITY_CLASSES:
+			if dist < best_priority_dist:
+				best_priority_dist = dist
+				best_priority = enemy
+
+	return best_priority if best_priority else best_any
 
 func get_unit_at(local_pos: Vector2, radius: float = 30.0, exclude: Unit = null) -> Unit:
 	var closest: Unit = null

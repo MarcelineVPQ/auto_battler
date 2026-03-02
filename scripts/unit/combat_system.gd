@@ -7,6 +7,7 @@ signal combat_event(text: String)
 signal tick_completed()
 
 const TICK_INTERVAL: float = 0.5
+const MAX_COMBAT_TIME: float = 60.0  # stalemate after 60 seconds
 
 var board: Board
 var is_fighting: bool = false
@@ -80,6 +81,13 @@ func _process_tick() -> void:
 		is_fighting = false
 		_record_surviving_player_times()
 		combat_ended.emit(true)
+		return
+	# Stalemate — if combat drags on too long, attacker (player) loses
+	if combat_elapsed >= MAX_COMBAT_TIME:
+		is_fighting = false
+		_record_surviving_player_times()
+		combat_event.emit("[color=yellow]Stalemate! Combat timed out after %ds.[/color]" % int(MAX_COMBAT_TIME))
+		combat_ended.emit(false)
 		return
 
 	# Process all living units
@@ -279,7 +287,7 @@ func _attack(attacker: Unit, target: Unit) -> void:
 			target.living_shield_hp = 0
 
 	# Deal damage (armor/evasion handled inside target)
-	var result := target.take_damage(atk_damage)
+	var result := target.take_damage(atk_damage, attacker.armor_pen)
 
 	# Combat log
 	var atk_tag := "cyan" if attacker.team == Unit.Team.PLAYER else "red"

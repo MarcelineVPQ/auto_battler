@@ -441,7 +441,8 @@ func _populate_wave_cards() -> void:
 	for i in range(3):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(240, 210)
+		btn.custom_minimum_size = Vector2(240, 280)
+		btn.clip_contents = true
 
 		# Margin wrapper so the card content sizes the button
 		var margin := MarginContainer.new()
@@ -455,6 +456,7 @@ func _populate_wave_cards() -> void:
 		var card := VBoxContainer.new()
 		card.add_theme_constant_override("separation", 2)
 		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 		# Gold bonus banner (3rd card) — all cards reserve the same row height
 		var bonus_gold: int = wave.get("bonus_gold", 0)
@@ -522,13 +524,20 @@ func _populate_wave_cards() -> void:
 				icon_row.add_child(tex)
 		card.add_child(icon_row)
 
-		# Enemy composition text
+		# Enemy composition text (scrollable when list is long)
 		var comp := Label.new()
 		comp.text = wave.enemy_text
 		comp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		comp.add_theme_font_size_override("font_size", 11)
 		comp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.add_child(comp)
+		comp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var comp_scroll := ScrollContainer.new()
+		comp_scroll.custom_minimum_size = Vector2(0, 0)
+		comp_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		comp_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		comp_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		comp_scroll.add_child(comp)
+		card.add_child(comp_scroll)
 
 		# Enemy buffs — compute max level in the wave and show scaling
 		var max_lvl := 1
@@ -586,17 +595,36 @@ func _hide_wave_select() -> void:
 
 func _generate_wave_options() -> Array[Dictionary]:
 	var options: Array[Dictionary] = []
-	for i in range(3):
-		options.append(_generate_single_wave())
-	# 3rd option is harder — give it a bonus gold reward
+	for i in range(2):
+		options.append(_generate_single_wave(0))
+	# 3rd option is always the hardest — extra budget + bonus gold reward
+	options.append(_generate_single_wave(2 + GameManager.current_round / 2))
 	var bonus := 5 + randi_range(0, GameManager.current_round)
 	options[2].bonus_gold = bonus
+	# Sort first two by DPS so easiest is first, medium second
+	if _wave_dps(options[0]) > _wave_dps(options[1]):
+		var tmp := options[0]
+		options[0] = options[1]
+		options[1] = tmp
 	return options
 
-func _generate_single_wave() -> Dictionary:
+func _wave_dps(wave: Dictionary) -> float:
+	var total := 0.0
+	for entry in wave.enemies:
+		var data: UnitData = entry.data
+		var lvl: int = entry.get("level", 1)
+		var dmg := float(data.damage)
+		var aps := data.attacks_per_second
+		if lvl > 1:
+			dmg *= 1.0 + (lvl - 1) * 0.45
+			aps *= 1.0 + (lvl - 1) * 0.18
+		total += dmg * aps
+	return total
+
+func _generate_single_wave(extra_budget: int = 0) -> Dictionary:
 	var round_num := GameManager.current_round
-	# Farm budget: base + round scaling + variance
-	var enemy_farm_budget := round_num + 1 + randi_range(0, maxi(round_num / 3, 1))
+	# Farm budget: base + round scaling + variance + optional extra for hard waves
+	var enemy_farm_budget := round_num + 1 + randi_range(0, maxi(round_num / 3, 1)) + extra_budget
 
 	# Enemy level scales with rounds (faster progression, higher cap)
 	var base_level := clampi(ceili(round_num / 2.0), 1, 10)
@@ -966,6 +994,8 @@ func _buy_upgrade(idx: int) -> void:
 	slot.sold = true
 	_targeting_upgrade = true
 	_pending_upgrade_slot = idx
+	var upgrade_data: Dictionary = slot.data
+	board.targeting_class_req = upgrade_data.get("class_req", "")
 	board.targeting_mode = true
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
 	_update_shop_display()
@@ -1006,6 +1036,7 @@ func _apply_pending_upgrade(unit: Unit) -> void:
 
 	_targeting_upgrade = false
 	_pending_upgrade_slot = -1
+	board.targeting_class_req = ""
 	board.targeting_mode = false
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 
@@ -1042,6 +1073,7 @@ func _cancel_upgrade_targeting() -> void:
 
 	_targeting_upgrade = false
 	_pending_upgrade_slot = -1
+	board.targeting_class_req = ""
 	board.targeting_mode = false
 	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 	_update_shop_display()
@@ -1533,11 +1565,11 @@ func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2) -> Unit:
 
 func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit) -> void:
 	var archer := _spawn_unit(data, team, pos)
-	# Summoned archers are weaker than recruited ones (60% base stats)
-	archer.damage = int(ceil(archer.damage * 0.6))
-	archer.max_hp = int(ceil(archer.max_hp * 0.6))
+	# Summoned archers are weaker than recruited ones (75% base stats)
+	archer.damage = int(ceil(archer.damage * 0.75))
+	archer.max_hp = int(ceil(archer.max_hp * 0.75))
 	archer.current_hp = archer.max_hp
-	archer.attacks_per_second *= 0.8
+	archer.attacks_per_second *= 0.9
 	archer.health_bar.max_value = archer.max_hp
 	archer.health_bar.value = archer.current_hp
 	# Scale summoned archer stats based on the summoner's merge count and stat purchases
@@ -1546,23 +1578,25 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 		total_purchases += summoner.stat_purchases[key]
 	var power: float = (summoner.level - 1) * 5.0 + summoner.xp + total_purchases
 	if power > 0:
-		var scale_factor := 1.0 + power * 0.08
+		var scale_factor := 1.0 + power * 0.12
 		archer.damage = int(ceil(archer.damage * scale_factor))
 		archer.max_hp = int(ceil(archer.max_hp * scale_factor))
 		archer.current_hp = archer.max_hp
-		archer.attacks_per_second *= 1.0 + power * 0.03
+		archer.attacks_per_second *= 1.0 + power * 0.05
 		archer.health_bar.max_value = archer.max_hp
 		archer.health_bar.value = archer.current_hp
 		archer.update_scale()
-	# Necromancy: each stack gives summoned archers 15% of the summoner's bonus stats (max 3 stacks)
+	# Necromancy: each stack gives summoned archers 20% of the summoner's bonus stats (max 3 stacks)
 	if summoner.necromancy_stacks > 0:
 		var effective_stacks := mini(summoner.necromancy_stacks, 3)
-		var pct := effective_stacks * 0.15
+		var pct := effective_stacks * 0.20
+		var bonus_dmg := summoner.damage - summoner.unit_data.damage
 		var bonus_hp := summoner.max_hp - summoner.unit_data.max_hp
 		var bonus_atk_spd := summoner.attacks_per_second - summoner.unit_data.attacks_per_second
 		var bonus_armor := summoner.armor - summoner.unit_data.armor
 		var bonus_evasion := summoner.evasion - summoner.unit_data.evasion
 		var bonus_crit := summoner.crit_chance - summoner.unit_data.crit_chance
+		archer.damage += int(ceil(bonus_dmg * pct))
 		archer.max_hp += int(ceil(bonus_hp * pct))
 		archer.current_hp = archer.max_hp
 		archer.attacks_per_second += bonus_atk_spd * pct
@@ -1576,8 +1610,8 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 	var round_num: int = GameManager.current_round
 	match summoner.ability_key:
 		"summoner_guardian":
-			var bonus_hp := 10 + round_num * 4
-			var bonus_armor := 3 + round_num * 2
+			var bonus_hp := 15 + round_num * 5
+			var bonus_armor := 5 + round_num * 3
 			archer.max_hp += bonus_hp
 			archer.current_hp = archer.max_hp
 			archer.armor += bonus_armor
@@ -1586,15 +1620,15 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 			archer.health_bar.value = archer.current_hp
 			archer._update_armor_bar()
 		"summoner_familiar":
-			var bonus_dmg := 2 + round_num * 2
-			var bonus_crit := 5.0 + round_num * 1.5
-			var bonus_aps := 0.05 + round_num * 0.02
+			var bonus_dmg := 3 + round_num * 3
+			var bonus_crit := 5.0 + round_num * 2.0
+			var bonus_aps := 0.1 + round_num * 0.03
 			archer.damage += bonus_dmg
 			archer.crit_chance += bonus_crit
 			archer.attacks_per_second += bonus_aps
 		_:
-			var bonus_hp := 5 + round_num * 2
-			var bonus_dmg := 1 + round_num
+			var bonus_hp := 8 + round_num * 3
+			var bonus_dmg := 2 + round_num * 2
 			archer.max_hp += bonus_hp
 			archer.current_hp = archer.max_hp
 			archer.damage += bonus_dmg
@@ -1895,6 +1929,8 @@ func _show_info_panel(unit: Unit) -> void:
 	_add_stat_row(unit, "max_hp", "Health", "%d/%d" % [unit.current_hp, unit.max_hp], can_buy, 10.0)
 	_add_stat_row(unit, "max_mana", "Mana", "%d/%d" % [unit.current_mana, unit.max_mana], can_buy, 2.0)
 	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 3.0)
+	if unit.armor_pen > 0.0:
+		_add_stat_display("Armor Pen", "%.0f%%" % (unit.armor_pen * 100.0))
 	_add_stat_row(unit, "evasion", "Evasion", "%.0f%%" % unit.evasion, can_buy, 2.0)
 	_add_stat_row(unit, "attack_range", "Atk Range", "%.0f" % unit.attack_range, can_buy, 20.0)
 	_add_stat_row(unit, "ability_range", "Abl Range", "%.0f" % unit.ability_range, can_buy, 20.0)
@@ -1911,9 +1947,9 @@ func _show_info_panel(unit: Unit) -> void:
 		debuff_header.text = "Debuffs:"
 		info_panel.add_child(debuff_header)
 		if unit.poison_dot > 0:
-			_add_stat_display("Poison", "%d stacks (%d HP/tick)" % [unit.poison_dot, unit.poison_dot])
+			_add_stat_display_colored("Poison", "%d stacks (%d HP/tick)" % [unit.poison_dot, unit.poison_dot], Color(0.2, 0.85, 0.2))
 		if unit.corrosive_dot > 0:
-			_add_stat_display("Corrosive", "%d stacks" % unit.corrosive_dot)
+			_add_stat_display_colored("Corrosive", "%d stacks" % unit.corrosive_dot, Color(0.9, 0.75, 0.1))
 
 	# Survival Regen section (shown only when nonzero)
 	if unit.survival_hp_regen_bonus > 0.0 or unit.survival_mana_regen_bonus > 0.0:
@@ -1955,6 +1991,9 @@ func _show_info_panel(unit: Unit) -> void:
 			upg_lbl.text = "%s Lv%d — %s" % [upg.name, level, upg.desc]
 		else:
 			upg_lbl.text = "%s — %s" % [upg.name, upg.desc]
+		var upg_color := _get_buff_icon_color(upg.get("stat", ""))
+		if upg_color != Color.WHITE:
+			upg_lbl.add_theme_color_override("font_color", upg_color)
 		upg_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		upg_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(upg_lbl)
@@ -2009,6 +2048,28 @@ func _add_stat_display(label_text: String, value_text: String) -> void:
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.text = "     %s: %s" % [label_text, value_text]
 	info_panel.add_child(lbl)
+
+func _add_stat_display_colored(label_text: String, value_text: String, color: Color) -> void:
+	var lbl := Label.new()
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.text = "     %s: %s" % [label_text, value_text]
+	info_panel.add_child(lbl)
+
+func _get_buff_icon_color(stat: String) -> Color:
+	match stat:
+		"corrosive": return Color(0.9, 0.75, 0.1)
+		"venom_arrow": return Color(0.2, 0.85, 0.2)
+		"thorns_slow": return Color(0.7, 0.3, 0.9)
+		"lifesteal": return Color(0.9, 0.15, 0.25)
+		"last_stand": return Color(1.0, 0.5, 0.1)
+		"relentless": return Color(1.0, 0.85, 0.2)
+		"living_shield": return Color(0.3, 0.6, 1.0)
+		"invincible": return Color(1.0, 1.0, 1.0)
+		"haymaker": return Color(1.0, 0.6, 0.15)
+		"sepsis": return Color(0.5, 0.8, 0.1)
+		"primed": return Color(0.2, 0.9, 0.9)
+	return Color.WHITE
 
 func _show_shop_preview(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]

@@ -82,6 +82,7 @@ var evasion: float
 var crit_chance: float
 var crit_vulnerability: float = 0.0
 var armor_effectiveness: float = 1.0
+var armor_pen: float = 0.0  # percentage of armor ignored (0.0 - 1.0)
 var skill_proc_chance: float
 var max_mana: int
 var current_mana: int
@@ -127,6 +128,10 @@ func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	mana_regen_per_second = data.mana_regen_per_second
 	hp_regen_per_second = data.hp_regen_per_second
 	ability_cooldown = data.ability_cooldown
+	# Class-based armor penetration
+	match data.unit_class:
+		"Archer": armor_pen = 0.20
+		"Assassin": armor_pen = 0.30
 
 func _ready() -> void:
 	if unit_data:
@@ -268,7 +273,7 @@ func _update_mana_bar() -> void:
 	mana_bar.max_value = max_mana
 	mana_bar.value = current_mana
 
-func take_damage(amount: int) -> Dictionary:
+func take_damage(amount: int, pen: float = 0.0) -> Dictionary:
 	var result := {"hit": true, "damage": 0, "crit": false, "evaded": false, "deflected": false}
 	if is_dead:
 		result.hit = false
@@ -280,8 +285,10 @@ func take_damage(amount: int) -> Dictionary:
 		result.evaded = true
 		return result
 
+	# Apply armor penetration — reduce effective armor
+	var effective_armor := float(armor) * armor_effectiveness * (1.0 - clampf(pen, 0.0, 1.0))
+
 	# Armor deflection roll — higher armor = higher chance to completely block
-	var effective_armor := float(armor) * armor_effectiveness
 	if effective_armor > 0:
 		var deflect_chance := effective_armor / (effective_armor + 150.0) * 40.0
 		if randf() * 100.0 < deflect_chance:
