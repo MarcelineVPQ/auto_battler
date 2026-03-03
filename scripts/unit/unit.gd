@@ -60,6 +60,9 @@ var haymaker_counter: int = 0
 # Legion Master: bonus stats for summoned units
 var legion_master: bool = false
 
+# Hellfire: Warlock AoE splash after abilities
+var hellfire: bool = false
+
 # Corrosive: attack buff that applies stacking DoT to targets
 var corrosive_power: int = 0  # damage applied per stack on hit
 var corrosive_dot: int = 0    # active DoT stacks on this unit (from enemy attacks)
@@ -260,7 +263,7 @@ func update_scale() -> void:
 func _update_armor_bar() -> void:
 	if armor > 0:
 		armor_bar.visible = true
-		armor_bar.max_value = armor
+		armor_bar.max_value = max_armor
 		armor_bar.value = armor
 	else:
 		armor_bar.visible = false
@@ -279,8 +282,8 @@ func take_damage(amount: int, pen: float = 0.0) -> Dictionary:
 		result.hit = false
 		return result
 
-	# Evasion roll
-	if randf() * 100.0 < evasion:
+	# Evasion roll (capped at 75% — attacks always have a chance to land)
+	if randf() * 100.0 < minf(evasion, 75.0):
 		result.hit = false
 		result.evaded = true
 		return result
@@ -313,7 +316,13 @@ func die() -> void:
 	is_dead = true
 	died.emit(self)
 	var tween := create_tween()
-	tween.tween_property(self, "modulate:a", 0.0, 0.3)
+	# Red flash before fade
+	tween.tween_property(self, "modulate", Color(1.5, 0.2, 0.2, 1.0), 0.08)
+	# Fade out + shrink
+	tween.set_parallel(true)
+	tween.tween_property(self, "modulate", Color(1.0, 0.2, 0.2, 0.0), 0.5)
+	tween.tween_property(self, "scale", Vector2(0.5, 0.5), 0.5)
+	tween.set_parallel(false)
 	tween.tween_callback(queue_free)
 
 func can_attack() -> bool:

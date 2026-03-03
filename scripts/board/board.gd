@@ -25,31 +25,44 @@ var blood_splats: Array[Node2D] = []
 func spawn_blood_splat(pos: Vector2) -> void:
 	var splat := Node2D.new()
 	splat.position = pos
-	splat.z_index = -1  # Draw behind units
+	splat.z_index = 0  # Draw above board background, below units
 	# Generate random splat data and store it
 	var drops: Array[Dictionary] = []
-	# Main pool
-	drops.append({"offset": Vector2.ZERO, "radius": randf_range(6.0, 10.0)})
-	# Smaller satellite drops
+	# Main pool — larger and brighter
+	drops.append({"offset": Vector2.ZERO, "radius": randf_range(10.0, 16.0)})
+	# Smaller satellite drops — bigger
 	var num_drops := randi_range(3, 6)
 	for i in range(num_drops):
 		var angle := randf() * TAU
-		var dist := randf_range(4.0, 14.0)
+		var dist := randf_range(6.0, 18.0)
 		drops.append({
 			"offset": Vector2(cos(angle), sin(angle)) * dist,
-			"radius": randf_range(2.0, 5.0),
+			"radius": randf_range(4.0, 8.0),
 		})
 	splat.set_meta("drops", drops)
-	splat.set_meta("splat_alpha", 0.6)
+	splat.set_meta("splat_alpha", 0.8)
 	splat.draw.connect(func():
 		var d: Array = splat.get_meta("drops")
 		var alpha: float = splat.get_meta("splat_alpha")
 		for drop in d:
-			var col := Color(0.5, 0.05, 0.05, alpha)
+			var col := Color(0.7, 0.08, 0.08, alpha)
 			splat.draw_circle(drop.offset, drop.radius, col)
 	)
 	add_child(splat)
 	blood_splats.append(splat)
+	# Fade out over 8 seconds then remove
+	var fade_tween := create_tween()
+	fade_tween.tween_interval(2.0)
+	fade_tween.tween_method(func(alpha: float):
+		if is_instance_valid(splat):
+			splat.set_meta("splat_alpha", alpha)
+			splat.queue_redraw()
+	, 0.8, 0.0, 6.0)
+	fade_tween.tween_callback(func():
+		if is_instance_valid(splat):
+			blood_splats.erase(splat)
+			splat.queue_free()
+	)
 
 func clear_blood_splats() -> void:
 	for splat in blood_splats:
@@ -119,14 +132,15 @@ func _draw() -> void:
 		draw_arc(m_pos, 32.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.9), 3.0)
 		draw_arc(m_pos, 36.0, 0, TAU, 32, Color(1.0, 0.84, 0.0, 0.4), 1.5)
 
-	# Draw range circles for selected unit
+	# Draw range circles for selected unit (clipped to arena)
 	if selected_unit and is_instance_valid(selected_unit) and not selected_unit.is_dead:
 		var local_pos := selected_unit.position
 		# Attack range — solid blue circle
-		draw_arc(local_pos, selected_unit.attack_range, 0, TAU, 64, Color(0.5, 0.8, 1.0, 0.4), 2.0)
+		_draw_clipped_circle(local_pos, selected_unit.attack_range, 64, Color(0.5, 0.8, 1.0, 0.4), 2.0)
+		var atk_label_y := clampf(local_pos.y + selected_unit.attack_range + 16, 16.0, ARENA_HEIGHT - 4.0)
 		draw_string(
 			ThemeDB.fallback_font,
-			local_pos + Vector2(-40, selected_unit.attack_range + 16),
+			Vector2(local_pos.x - 40, atk_label_y),
 			"Attack Range",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
 			Color(0.5, 0.8, 1.0, 0.6)
@@ -139,10 +153,11 @@ func _draw() -> void:
 		var abl_color := Color(1.0, 0.82, 0.3, 0.45)
 		for i in dash_count:
 			var start_angle := float(i) * (dash_arc + gap_arc)
-			draw_arc(local_pos, abl_r, start_angle, start_angle + dash_arc, 8, abl_color, 2.0)
+			_draw_clipped_arc(local_pos, abl_r, start_angle, start_angle + dash_arc, 8, abl_color, 2.0)
+		var abl_label_y := clampf(local_pos.y - abl_r - 6, 16.0, ARENA_HEIGHT - 4.0)
 		draw_string(
 			ThemeDB.fallback_font,
-			local_pos + Vector2(-40, -abl_r - 6),
+			Vector2(local_pos.x - 40, abl_label_y),
 			"Ability Range",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
 			Color(1.0, 0.82, 0.3, 0.6)
@@ -299,3 +314,22 @@ func clear_all() -> void:
 	selected_unit = null
 	clear_blood_splats()
 	queue_redraw()
+
+## Draw a full circle clipped to the arena rectangle.
+## Points outside the arena are clamped to the boundary.
+func _draw_clipped_circle(center: Vector2, radius: float, segments: int, color: Color, width: float) -> void:
+	_draw_clipped_arc(center, radius, 0, TAU, segments, color, width)
+
+func _draw_clipped_arc(center: Vector2, radius: float, start_angle: float, end_angle: float, segments: int, color: Color, width: float) -> void:
+	var arena := Rect2(0, 0, ARENA_WIDTH, ARENA_HEIGHT)
+	var step := (end_angle - start_angle) / float(segments)
+	var prev := Vector2(center.x + cos(start_angle) * radius, center.y + sin(start_angle) * radius)
+	prev = prev.clamp(arena.position, arena.position + arena.size)
+	for i in range(1, segments + 1):
+		var angle := start_angle + step * float(i)
+		var pt := Vector2(center.x + cos(angle) * radius, center.y + sin(angle) * radius)
+		var clamped := pt.clamp(arena.position, arena.position + arena.size)
+		# Only draw segments where at least one endpoint is inside the arena
+		if arena.has_point(pt) or arena.has_point(prev) or (arena.has_point(Vector2(center.x + cos(angle - step * 0.5) * radius, center.y + sin(angle - step * 0.5) * radius))):
+			draw_line(prev, clamped, color, width, true)
+		prev = clamped

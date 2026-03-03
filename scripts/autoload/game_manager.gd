@@ -10,12 +10,12 @@ signal farms_changed
 signal game_over
 
 const MAX_ROUNDS: int = 20
-const STARTING_GOLD: int = 10
+const STARTING_GOLD: int = 25
 const STARTING_LIVES: int = 5
 const STARTING_FARMS: int = 5
 const BASE_FARM_COST: int = 1
 const BASE_INCOME: int = 12
-const INCOME_SCALE_ROUND: int = 7
+const INCOME_SCALE_ROUND: int = 5
 const VICTORY_BONUS: int = 2
 const INTEREST_RATE: float = 0.10
 const MAX_INTEREST: int = 5
@@ -29,7 +29,6 @@ var farms: int = STARTING_FARMS
 var farm_purchases: int = 0
 var last_round_won: bool = false
 var gold_snapshot: int = 0
-var first_loss_given: bool = false
 
 func change_phase(new_phase: Phase) -> void:
 	current_phase = new_phase
@@ -48,9 +47,6 @@ func end_battle(player_won: bool) -> void:
 			game_over.emit()
 		else:
 			gold = gold_snapshot
-			if not first_loss_given:
-				first_loss_given = true
-				gold += 50
 			gold_changed.emit(gold)
 	round_ended.emit(player_won)
 
@@ -98,6 +94,13 @@ func buy_farm() -> bool:
 	farms_changed.emit()
 	return true
 
+func calculate_hero_income(squad: Array) -> int:
+	var income := 0
+	for entry in squad:
+		var lvl: int = entry.get("level", 1)
+		income += maxi(0, lvl - 1)
+	return income
+
 func reset() -> void:
 	current_phase = Phase.WAVE_SELECT
 	current_round = 0
@@ -107,7 +110,70 @@ func reset() -> void:
 	farm_purchases = 0
 	last_round_won = false
 	gold_snapshot = 0
-	first_loss_given = false
+	gold_changed.emit(gold)
+	lives_changed.emit(lives)
+	farms_changed.emit()
+
+# ── Save System ──────────────────────────────────────────────
+
+var save_path: String:
+	get: return ProfileManager.get_profile_path("savegame.json")
+
+func save_game(squad_json: Array, ranked: bool) -> void:
+	var data := {
+		"version": 1,
+		"ranked_mode": ranked,
+		"current_round": current_round,
+		"gold": gold,
+		"lives": lives,
+		"farms": farms,
+		"farm_purchases": farm_purchases,
+		"gold_snapshot": gold_snapshot,
+		"last_round_won": last_round_won,
+		"player_squad": squad_json,
+	}
+	var file := FileAccess.open(save_path, FileAccess.WRITE)
+	if not file:
+		return
+	file.store_string(JSON.stringify(data))
+	file.close()
+
+func load_game() -> Dictionary:
+	if not FileAccess.file_exists(save_path):
+		return {}
+	var file := FileAccess.open(save_path, FileAccess.READ)
+	if not file:
+		return {}
+	var text := file.get_as_text()
+	file.close()
+	var json := JSON.new()
+	if json.parse(text) != OK:
+		return {}
+	if json.data is Dictionary:
+		return json.data
+	return {}
+
+func has_save() -> bool:
+	return FileAccess.file_exists(save_path)
+
+func has_save_for_mode(ranked: bool) -> bool:
+	if not has_save():
+		return false
+	var data := load_game()
+	return data.get("ranked_mode", false) == ranked
+
+func delete_save() -> void:
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(save_path)
+
+func restore_from_save(data: Dictionary) -> void:
+	current_round = data.get("current_round", 1)
+	gold = data.get("gold", STARTING_GOLD)
+	lives = data.get("lives", STARTING_LIVES)
+	farms = data.get("farms", STARTING_FARMS)
+	farm_purchases = data.get("farm_purchases", 0)
+	gold_snapshot = data.get("gold_snapshot", 0)
+	last_round_won = data.get("last_round_won", false)
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
 	farms_changed.emit()

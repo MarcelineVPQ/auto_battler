@@ -7,7 +7,7 @@ const NUM_SIMULATIONS := 50
 const MAX_ROUNDS := 20
 
 # --- Game constants (mirrors game_manager.gd) ---
-const STARTING_GOLD := 10
+const STARTING_GOLD := 25
 const STARTING_FARMS := 5
 const BASE_FARM_COST := 1
 const BASE_INCOME := 12

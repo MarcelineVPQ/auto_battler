@@ -46,6 +46,12 @@ const CLASS_COLORS: Dictionary = {
 	"SkeletonArcher": Color(0.36, 0.75, 0.92),
 }
 
+const RARITY_COLORS: Dictionary = {
+	"Normal": Color(0.75, 0.75, 0.75),
+	"Rare": Color(0.65, 0.45, 0.85),
+	"Epic": Color(1.0, 0.6, 0.2),
+}
+
 # Hero data pool
 var hero_pool: Array[UnitData] = [
 	preload("res://resources/units/warlock.tres"),
@@ -105,6 +111,7 @@ var upgrade_pool: Array[Dictionary] = [
 	{"name": "Phantom Step", "cost": 12, "rarity": "Rare", "desc": "+10% evade, +10% crit", "stat": "phantom_step", "amount": 1.0, "class_req": "Assassin"},
 	{"name": "Fortress", "cost": 12, "rarity": "Rare", "desc": "+25 armor, +40 HP", "stat": "fortress", "amount": 1.0, "class_req": "Tank"},
 	{"name": "Soul Rend", "cost": 12, "rarity": "Rare", "desc": "+8 dmg, +3 max mana", "stat": "soul_rend", "amount": 1.0, "class_req": "Warlock"},
+	{"name": "Hellfire", "cost": 12, "rarity": "Rare", "desc": "Ability also blasts nearby enemies for 50% dmg", "stat": "hellfire", "amount": 1.0, "class_req": "Warlock"},
 	{"name": "Divine Covenant", "cost": 12, "rarity": "Rare", "desc": "+30 HP, +3 max mana", "stat": "divine_covenant", "amount": 1.0, "class_req": "Priest"},
 	{"name": "Toxic Mastery", "cost": 12, "rarity": "Rare", "desc": "+5 dmg, +5% skill proc", "stat": "toxic_mastery", "amount": 1.0, "class_req": "Herbalist"},
 	{"name": "Holy Vanguard", "cost": 12, "rarity": "Rare", "desc": "+15 armor, +25% armor power, +3 dmg", "stat": "holy_vanguard", "amount": 1.0, "class_req": "Paladin"},
@@ -169,7 +176,7 @@ var shop_buttons: Array[Button] = []
 var reroll_button: Button
 var freeze_button: Button
 var sell_button: Button
-var action_bar: HBoxContainer
+var action_bar: VBoxContainer
 
 # Shop freeze state
 var shop_frozen: bool = false
@@ -177,6 +184,10 @@ var shop_frozen: bool = false
 # Upgrade targeting state
 var _targeting_upgrade: bool = false
 var _pending_upgrade_slot: int = -1
+
+# Merge targeting state (choosing which unit to stack XP into)
+var _targeting_merge: bool = false
+var _pending_merge_slot: int = -1
 
 # Shop confirmation state
 var _selected_shop_slot: int = -1
@@ -198,12 +209,42 @@ var strength_bar_enemy: ColorRect
 var dps_panel: HBoxContainer
 var dps_player_label: Label
 var dps_enemy_label: Label
+var battle_name_panel: HBoxContainer
+var battle_player_name: Label
+var battle_enemy_name: Label
+
+# Ranked PvP state
+var ranked_mode: bool = false
+var current_opponent_rating: int = 0
+var current_opponent_name: String = ""
+var _ranked_opponents: Array = []
+var _waiting_for_opponents: bool = false
+var combat_timer_label: Label
 var combat_log_scroll: ScrollContainer
 var combat_log: RichTextLabel
+
+# Result overlay
+var result_overlay: ColorRect
+var result_title: Label
+var result_details: Label
+var result_gold_label: Label
+var result_gold_won_label: Label
+var result_continue_btn: Button
+var _last_result: String = ""
+
+# Quit overlay
+var quit_overlay: ColorRect
+
+# Gold counting animation
+var _gold_anim_base: int = 0
+var _gold_anim_won: int = 0
+var _gold_anim_counted: int = 0
+var _gold_anim_timer: Timer
 
 func _ready() -> void:
 	combat_system.setup(board)
 	combat_system.combat_ended.connect(_on_combat_ended)
+	combat_system.combat_draw.connect(_on_combat_draw)
 	combat_system.summon_requested.connect(_on_summon_requested)
 	ready_button.pressed.connect(_on_ready_pressed)
 	buy_farm_button.pressed.connect(_on_buy_farm_pressed)
@@ -217,11 +258,36 @@ func _ready() -> void:
 	_build_wave_select_ui()
 	_build_shop_bar()
 	_build_battle_ui()
+	_build_result_overlay()
+	_build_quit_overlay()
 	_hide_info_panel()
 	_hide_shop()
 
 	combat_system.combat_event.connect(_on_combat_event)
 	combat_system.tick_completed.connect(_on_tick_completed)
+
+	# Ranked PvP setup
+	ranked_mode = GameManager.has_meta("ranked_mode") and GameManager.get_meta("ranked_mode")
+	var _bm = get_node_or_null("/root/BackendManager")
+	if ranked_mode and _bm:
+		_bm.opponents_fetched.connect(_on_opponents_fetched)
+	else:
+		ranked_mode = false
+
+	# Load from save if flagged by main menu
+	if GameManager.has_meta("loading_save") and GameManager.get_meta("loading_save"):
+		GameManager.remove_meta("loading_save")
+		var save_data := GameManager.load_game()
+		if not save_data.is_empty():
+			GameManager.restore_from_save(save_data)
+			player_squad = SquadSerializer.json_to_squad(save_data.get("player_squad", []))
+			# Go straight to wave select for the current round (no advance_round income)
+			_restore_squad()
+			_roll_shop()
+			_show_shop()
+			GameManager.change_phase(GameManager.Phase.PREP)
+			_update_ui()
+			return
 
 	GameManager.advance_round()
 
@@ -271,9 +337,36 @@ func _build_battle_ui() -> void:
 
 	strength_bar_container.visible = false
 
+	# Name panel — player vs opponent labels above DPS
+	battle_name_panel = HBoxContainer.new()
+	battle_name_panel.position = Vector2(55, 52)
+	battle_name_panel.custom_minimum_size = Vector2(900, 16)
+	battle_name_panel.add_theme_constant_override("separation", 0)
+	battle_name_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(battle_name_panel)
+
+	battle_player_name = Label.new()
+	battle_player_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	battle_player_name.add_theme_font_size_override("font_size", 11)
+	battle_player_name.add_theme_color_override("font_color", Color(0.4, 0.65, 1.0))
+	battle_player_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_player_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_player_name.text = "Your Squad"
+	battle_name_panel.add_child(battle_player_name)
+
+	battle_enemy_name = Label.new()
+	battle_enemy_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	battle_enemy_name.add_theme_font_size_override("font_size", 11)
+	battle_enemy_name.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	battle_enemy_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_enemy_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_name_panel.add_child(battle_enemy_name)
+
+	battle_name_panel.visible = false
+
 	# DPS panel — live team DPS readout below strength bar
 	dps_panel = HBoxContainer.new()
-	dps_panel.position = Vector2(55, 52)
+	dps_panel.position = Vector2(55, 64)
 	dps_panel.custom_minimum_size = Vector2(900, 20)
 	dps_panel.add_theme_constant_override("separation", 0)
 	dps_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -296,6 +389,17 @@ func _build_battle_ui() -> void:
 	dps_panel.add_child(dps_enemy_label)
 
 	dps_panel.visible = false
+
+	# Combat timer — countdown label centered above the battlefield
+	combat_timer_label = Label.new()
+	combat_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combat_timer_label.add_theme_font_size_override("font_size", 14)
+	combat_timer_label.add_theme_color_override("font_color", Color.WHITE)
+	combat_timer_label.position = Vector2(430, 84)
+	combat_timer_label.size = Vector2(100, 20)
+	combat_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_timer_label.visible = false
+	ui_layer.add_child(combat_timer_label)
 
 	# Combat log — scrolling text at bottom-right
 	combat_log_scroll = ScrollContainer.new()
@@ -344,19 +448,216 @@ func _on_tick_completed() -> void:
 	dps_player_label.text = "Your DPS: %.1f" % player_dps
 	dps_enemy_label.text = "Enemy DPS: %.1f" % enemy_dps
 
+	# Update combat timer countdown
+	var remaining := maxf(CombatSystem.MAX_COMBAT_TIME - combat_system.combat_elapsed, 0.0)
+	var mins := int(remaining) / 60
+	var secs := int(remaining) % 60
+	combat_timer_label.text = "%d:%02d" % [mins, secs]
+	if remaining <= 5.0:
+		combat_timer_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
+	elif remaining <= 15.0:
+		combat_timer_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
+	else:
+		combat_timer_label.add_theme_color_override("font_color", Color.WHITE)
+
 	# Refresh info panel during combat so debuff stacks update live
 	if _info_unit and is_instance_valid(_info_unit) and not _info_unit.is_dead:
 		_show_info_panel(_info_unit)
 
 func _show_battle_ui() -> void:
 	strength_bar_container.visible = true
+	battle_name_panel.visible = true
 	dps_panel.visible = true
+	combat_timer_label.visible = true
 	combat_log_scroll.visible = true
 
 func _hide_battle_ui() -> void:
 	strength_bar_container.visible = false
+	battle_name_panel.visible = false
 	dps_panel.visible = false
+	combat_timer_label.visible = false
 	combat_log_scroll.visible = false
+
+# ── Result Overlay ─────────────────────────────────────────
+
+func _build_result_overlay() -> void:
+	result_overlay = ColorRect.new()
+	result_overlay.color = Color(0, 0, 0, 0.65)
+	result_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	result_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(result_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	result_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 0)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	panel_style.border_color = Color(0.6, 0.6, 0.7, 0.8)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(6)
+	panel_style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	panel.add_child(vbox)
+
+	result_title = Label.new()
+	result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_title.add_theme_font_size_override("font_size", 32)
+	vbox.add_child(result_title)
+
+	result_details = Label.new()
+	result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_details.add_theme_font_size_override("font_size", 14)
+	result_details.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	result_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(result_details)
+
+	result_gold_label = Label.new()
+	result_gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_gold_label.add_theme_font_size_override("font_size", 22)
+	result_gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	vbox.add_child(result_gold_label)
+
+	result_gold_won_label = Label.new()
+	result_gold_won_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_gold_won_label.add_theme_font_size_override("font_size", 16)
+	result_gold_won_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
+	vbox.add_child(result_gold_won_label)
+
+	_gold_anim_timer = Timer.new()
+	_gold_anim_timer.one_shot = false
+	_gold_anim_timer.wait_time = 0.08
+	_gold_anim_timer.timeout.connect(_on_gold_anim_tick)
+	add_child(_gold_anim_timer)
+
+	result_continue_btn = Button.new()
+	result_continue_btn.text = "Continue"
+	result_continue_btn.custom_minimum_size = Vector2(200, 40)
+	result_continue_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	result_continue_btn.pressed.connect(_on_result_continue)
+	vbox.add_child(result_continue_btn)
+
+	result_overlay.visible = false
+
+func _show_result_overlay(title: String, title_color: Color, details: String, gold_won: int = 0) -> void:
+	result_title.text = title
+	result_title.add_theme_color_override("font_color", title_color)
+	result_details.text = details
+	result_continue_btn.text = "Continue"
+	if gold_won > 0:
+		_gold_anim_base = GameManager.gold
+		_gold_anim_won = gold_won
+		_gold_anim_counted = 0
+		result_gold_label.text = "Gold: %dg" % _gold_anim_base
+		result_gold_won_label.text = "+%dg" % gold_won
+		result_gold_label.visible = true
+		result_gold_won_label.visible = true
+		_gold_anim_timer.start()
+	else:
+		result_gold_label.text = "Gold: %dg" % GameManager.gold
+		result_gold_won_label.visible = false
+		result_gold_label.visible = true
+	result_overlay.visible = true
+
+func _on_gold_anim_tick() -> void:
+	_gold_anim_counted += 1
+	var remaining := _gold_anim_won - _gold_anim_counted
+	result_gold_label.text = "Gold: %dg" % (_gold_anim_base + _gold_anim_counted)
+	result_gold_won_label.text = "+%dg" % remaining
+	AudioManager.play("coin", -6.0)
+	if _gold_anim_counted >= _gold_anim_won:
+		result_gold_won_label.visible = false
+		_gold_anim_timer.stop()
+
+func _finish_gold_anim() -> void:
+	_gold_anim_timer.stop()
+	if _gold_anim_won > 0 and _gold_anim_counted < _gold_anim_won:
+		_gold_anim_counted = _gold_anim_won
+		result_gold_label.text = "Gold: %dg" % (_gold_anim_base + _gold_anim_won)
+		result_gold_won_label.visible = false
+
+func _on_result_continue() -> void:
+	_finish_gold_anim()
+	result_overlay.visible = false
+	match _last_result:
+		"game_complete":
+			GameManager.delete_save()
+			GameManager.reset()
+			get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+		"victory":
+			_start_next_round()
+		"defeat", "draw":
+			_start_rematch()
+		"game_over":
+			GameManager.delete_save()
+			GameManager.reset()
+			get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+
+# ── Quit Overlay ──────────────────────────────────────────
+
+func _build_quit_overlay() -> void:
+	quit_overlay = ColorRect.new()
+	quit_overlay.color = Color(0, 0, 0, 0.8)
+	quit_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	quit_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	quit_overlay.visible = false
+	ui_layer.add_child(quit_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	quit_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(320, 0)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	panel_style.border_color = Color(0.6, 0.6, 0.7, 0.8)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(6)
+	panel_style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Save & Quit?"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	vbox.add_child(title)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 12)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btn_row)
+
+	var save_quit_btn := Button.new()
+	save_quit_btn.text = "Save & Quit"
+	save_quit_btn.custom_minimum_size = Vector2(130, 40)
+	save_quit_btn.pressed.connect(_on_save_and_quit)
+	btn_row.add_child(save_quit_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.custom_minimum_size = Vector2(130, 40)
+	cancel_btn.pressed.connect(func(): quit_overlay.visible = false)
+	btn_row.add_child(cancel_btn)
+
+func _on_save_and_quit() -> void:
+	_save_squad()
+	GameManager.save_game(SquadSerializer.squad_to_json(player_squad), ranked_mode)
+	AudioManager.stop_music()
+	GameManager.reset()
+	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 
 # ── Wave Select UI ──────────────────────────────────────────
 
@@ -408,19 +709,46 @@ func _build_wave_select_ui() -> void:
 	wave_overlay.visible = false
 
 func _show_wave_select() -> void:
-	wave_options = _generate_wave_options()
 	var title := "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	if ranked_mode:
+		title += "  [Ranked]"
 	if GameManager.current_round % 5 == 0:
 		title += "  —  +1 Life!"
 	wave_title.text = title
 	wave_dps_label.text = "Your Squad DPS: %.1f" % _get_squad_dps()
-	_populate_wave_cards()
-	wave_overlay.visible = true
+
+	var bm = get_node_or_null("/root/BackendManager")
+	if ranked_mode and bm and bm.is_online:
+		# Upload current squad snapshot then fetch opponents
+		if not player_squad.is_empty():
+			var squad_json := SquadSerializer.squad_to_json(player_squad)
+			bm.upload_squad_snapshot(squad_json, GameManager.current_round)
+		_waiting_for_opponents = true
+		bm.fetch_opponents(bm.player_rating, GameManager.current_round)
+		# Show overlay with "Searching for opponent..." — no wave cards
+		wave_title.text = "Searching for opponent..."
+		wave_dps_label.text = ""
+		for child in wave_cards_container.get_children():
+			child.queue_free()
+		wave_overlay.visible = true
+	elif ranked_mode:
+		# Ranked but backend offline — auto-generate AI opponent, skip picker
+		wave_options = [_generate_single_wave(0)]
+		_on_wave_selected(0)
+	else:
+		wave_options = _generate_wave_options()
+		_populate_wave_cards()
+		wave_overlay.visible = true
+
 	if GameManager.current_round % 5 == 0:
 		_show_warning("+1 Life gained!")
 		AudioManager.play("victory")
 
 func _show_wave_select_rematch() -> void:
+	if ranked_mode:
+		# Ranked rematch: skip wave picker, auto-select the same opponent
+		_on_wave_selected(0)
+		return
 	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
 	wave_dps_label.text = "Your Squad DPS: %.1f" % _get_squad_dps()
 	_populate_wave_cards()
@@ -434,11 +762,166 @@ func _get_squad_dps() -> float:
 			total += s.get("damage", 0) * s.get("attacks_per_second", 0.5)
 	return total
 
+func _on_opponents_fetched(opponents: Array) -> void:
+	if not _waiting_for_opponents:
+		return
+	_waiting_for_opponents = false
+	_ranked_opponents = opponents
+
+	if ranked_mode:
+		# Auto-match: pick the single closest-ELO opponent, skip the picker
+		var best_wave := _pick_best_opponent(opponents)
+		if best_wave.is_empty():
+			# No valid opponents — fall back to a single AI wave, auto-select
+			wave_options = [_generate_single_wave(0)]
+		else:
+			wave_options = [best_wave]
+		_on_wave_selected(0)
+		return
+
+	if opponents.is_empty():
+		# Fallback to AI waves — already generated
+		return
+
+	# Build 3 wave options from opponent snapshots (lower/similar/higher ELO)
+	var opponent_waves := _build_opponent_wave_options(opponents)
+	if opponent_waves.size() >= 3:
+		wave_options = opponent_waves
+	elif not opponent_waves.is_empty():
+		# Fill remaining slots with AI waves
+		while opponent_waves.size() < 3:
+			opponent_waves.append(_generate_single_wave(0))
+		wave_options = opponent_waves
+	# Refresh the cards
+	_populate_wave_cards()
+
+
+func _build_opponent_wave_options(opponents: Array) -> Array[Dictionary]:
+	if opponents.is_empty():
+		return []
+
+	# Sort by rating
+	var sorted := opponents.duplicate()
+	sorted.sort_custom(func(a, b):
+		return a.get("rating_at_time", 1000) < b.get("rating_at_time", 1000)
+	)
+
+	var bm_node = get_node_or_null("/root/BackendManager")
+	var my_rating: int = bm_node.player_rating if bm_node else 1000
+	var options: Array[Dictionary] = []
+
+	# Pick 3 tiers: lower, similar, higher
+	var lower: Dictionary = {}
+	var similar: Dictionary = {}
+	var higher: Dictionary = {}
+	var best_similar_dist := 9999
+
+	for opp in sorted:
+		var r: int = opp.get("rating_at_time", 1000)
+		if r < my_rating - 50 and (lower.is_empty() or r > lower.get("rating_at_time", 0)):
+			lower = opp
+		elif r > my_rating + 50 and (higher.is_empty() or r < higher.get("rating_at_time", 9999)):
+			higher = opp
+		var dist: int = abs(r - my_rating)
+		if dist < best_similar_dist:
+			best_similar_dist = dist
+			similar = opp
+
+	# Build wave dicts from the 3 picks
+	for pick in [lower, similar, higher]:
+		if pick.is_empty():
+			continue
+		var squad_json = pick.get("squad_json", [])
+		if squad_json is String:
+			var json := JSON.new()
+			if json.parse(squad_json) == OK:
+				squad_json = json.data
+		if not squad_json is Array or squad_json.is_empty():
+			continue
+
+		var opp_name: String = pick.get("player_name", "Unknown")
+		var opp_rating: int = pick.get("rating_at_time", 1000)
+
+		# Build enemy text from squad
+		var counts: Dictionary = {}
+		for entry in squad_json:
+			var uc: String = entry.get("unit_class", "?")
+			counts[uc] = counts.get(uc, 0) + 1
+		var enemy_text := ""
+		for key in counts:
+			enemy_text += "%dx %s\n" % [counts[key], key]
+
+		# Calculate DPS
+		var total_dps := SquadSerializer.calculate_squad_dps(squad_json)
+
+		options.append({
+			"name": "%s (ELO: %d)" % [opp_name, opp_rating],
+			"strategy": "opponent",
+			"enemies": [],
+			"total_units": squad_json.size(),
+			"total_farms": 0,
+			"enemy_text": enemy_text.strip_edges(),
+			"is_opponent": true,
+			"opponent_squad_json": squad_json,
+			"opponent_name": opp_name,
+			"opponent_rating": opp_rating,
+			"opponent_dps": total_dps,
+		})
+
+	return options
+
+
+func _pick_best_opponent(opponents: Array) -> Dictionary:
+	# Returns a single wave dict for the closest-ELO opponent
+	if opponents.is_empty():
+		return {}
+	var bm_node = get_node_or_null("/root/BackendManager")
+	var my_rating: int = bm_node.player_rating if bm_node else 1000
+	var best: Dictionary = opponents[0]
+	var best_dist: int = abs(best.get("rating_at_time", 1000) - my_rating)
+	for opp in opponents:
+		var dist: int = abs(opp.get("rating_at_time", 1000) - my_rating)
+		if dist < best_dist:
+			best_dist = dist
+			best = opp
+	# Build wave dict from this opponent
+	var squad_json = best.get("squad_json", [])
+	if squad_json is String:
+		var json := JSON.new()
+		if json.parse(squad_json) == OK:
+			squad_json = json.data
+	if not squad_json is Array or squad_json.is_empty():
+		return {}
+	var opp_name: String = best.get("player_name", "Unknown")
+	var opp_rating: int = best.get("rating_at_time", 1000)
+	var counts: Dictionary = {}
+	for entry in squad_json:
+		var uc: String = entry.get("unit_class", "?")
+		counts[uc] = counts.get(uc, 0) + 1
+	var enemy_text := ""
+	for key in counts:
+		enemy_text += "%dx %s\n" % [counts[key], key]
+	var total_dps := SquadSerializer.calculate_squad_dps(squad_json)
+	return {
+		"name": "%s (ELO: %d)" % [opp_name, opp_rating],
+		"strategy": "opponent",
+		"enemies": [],
+		"total_units": squad_json.size(),
+		"total_farms": 0,
+		"enemy_text": enemy_text.strip_edges(),
+		"is_opponent": true,
+		"opponent_squad_json": squad_json,
+		"opponent_name": opp_name,
+		"opponent_rating": opp_rating,
+		"opponent_dps": total_dps,
+	}
+
+
 func _populate_wave_cards() -> void:
 	for child in wave_cards_container.get_children():
 		child.queue_free()
 
-	for i in range(3):
+	for i in range(mini(3, wave_options.size())):
 		var wave: Dictionary = wave_options[i]
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(240, 280)
@@ -493,13 +976,27 @@ func _populate_wave_cards() -> void:
 			spacer_bg.add_child(spacer_label)
 			card.add_child(spacer_bg)
 
-		# Strategy title
+		# Strategy title (or opponent name + rating for PvP)
 		var title := Label.new()
-		title.text = wave.name
+		if wave.get("is_opponent", false):
+			title.text = wave.get("opponent_name", "Unknown")
+			title.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0))
+		else:
+			title.text = wave.name
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		title.add_theme_font_size_override("font_size", 13)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(title)
+
+		# Show ELO rating for opponent waves
+		if wave.get("is_opponent", false):
+			var elo_label := Label.new()
+			elo_label.text = "ELO: %d" % wave.get("opponent_rating", 1000)
+			elo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			elo_label.add_theme_font_size_override("font_size", 11)
+			elo_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
+			elo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(elo_label)
 
 		# Icon row — one icon per unique enemy class in the wave
 		var icon_row := HBoxContainer.new()
@@ -508,20 +1005,38 @@ func _populate_wave_cards() -> void:
 		icon_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var seen_classes: Dictionary = {}
-		for entry in wave.enemies:
-			var data: UnitData = entry.data
-			if seen_classes.has(data.unit_class):
-				continue
-			seen_classes[data.unit_class] = true
-			if data.texture:
-				var tex := TextureRect.new()
-				tex.texture = data.texture
-				tex.custom_minimum_size = Vector2(22, 22)
-				tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-				tex.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-				tex.modulate = CLASS_COLORS.get(data.unit_class, Color.WHITE)
-				tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				icon_row.add_child(tex)
+		if wave.get("is_opponent", false):
+			# For opponent waves, extract classes from squad_json
+			for entry in wave.get("opponent_squad_json", []):
+				var uc: String = entry.get("unit_class", "")
+				if uc == "" or seen_classes.has(uc):
+					continue
+				seen_classes[uc] = true
+				var udata := SquadSerializer.get_unit_data(uc)
+				if udata and udata.texture:
+					var tex := TextureRect.new()
+					tex.texture = udata.texture
+					tex.custom_minimum_size = Vector2(22, 22)
+					tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+					tex.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+					tex.modulate = CLASS_COLORS.get(uc, Color.WHITE)
+					tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					icon_row.add_child(tex)
+		else:
+			for entry in wave.enemies:
+				var data: UnitData = entry.data
+				if seen_classes.has(data.unit_class):
+					continue
+				seen_classes[data.unit_class] = true
+				if data.texture:
+					var tex := TextureRect.new()
+					tex.texture = data.texture
+					tex.custom_minimum_size = Vector2(22, 22)
+					tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+					tex.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+					tex.modulate = CLASS_COLORS.get(data.unit_class, Color.WHITE)
+					tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					icon_row.add_child(tex)
 		card.add_child(icon_row)
 
 		# Enemy composition text (scrollable when list is long)
@@ -540,33 +1055,37 @@ func _populate_wave_cards() -> void:
 		card.add_child(comp_scroll)
 
 		# Enemy buffs — compute max level in the wave and show scaling
-		var max_lvl := 1
-		for entry in wave.enemies:
-			var lvl: int = entry.get("level", 1)
-			if lvl > max_lvl:
-				max_lvl = lvl
-		if max_lvl > 1:
-			var dmg_pct := int((max_lvl - 1) * 45)
-			var spd_pct := int((max_lvl - 1) * 18)
-			var buffs := Label.new()
-			buffs.text = "Buffs: +%d%% DMG/HP, +%d%% ATK spd" % [dmg_pct, spd_pct]
-			buffs.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			buffs.add_theme_font_size_override("font_size", 10)
-			buffs.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
-			buffs.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			card.add_child(buffs)
+		if not wave.get("is_opponent", false):
+			var max_lvl := 1
+			for entry in wave.enemies:
+				var lvl: int = entry.get("level", 1)
+				if lvl > max_lvl:
+					max_lvl = lvl
+			if max_lvl > 1:
+				var dmg_pct := int((max_lvl - 1) * 45)
+				var spd_pct := int((max_lvl - 1) * 18)
+				var buffs := Label.new()
+				buffs.text = "Buffs: +%d%% DMG/HP, +%d%% ATK spd" % [dmg_pct, spd_pct]
+				buffs.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				buffs.add_theme_font_size_override("font_size", 10)
+				buffs.add_theme_color_override("font_color", Color(1.0, 0.55, 0.55))
+				buffs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				card.add_child(buffs)
 
 		# Combined DPS stat
 		var total_dps := 0.0
-		for entry in wave.enemies:
-			var data: UnitData = entry.data
-			var lvl: int = entry.get("level", 1)
-			var dmg := float(data.damage)
-			var aps := data.attacks_per_second
-			if lvl > 1:
-				dmg *= 1.0 + (lvl - 1) * 0.45
-				aps *= 1.0 + (lvl - 1) * 0.18
-			total_dps += dmg * aps
+		if wave.get("is_opponent", false):
+			total_dps = wave.get("opponent_dps", 0.0)
+		else:
+			for entry in wave.enemies:
+				var data: UnitData = entry.data
+				var lvl: int = entry.get("level", 1)
+				var dmg := float(data.damage)
+				var aps := data.attacks_per_second
+				if lvl > 1:
+					dmg *= 1.0 + (lvl - 1) * 0.45
+					aps *= 1.0 + (lvl - 1) * 0.18
+				total_dps += dmg * aps
 		var dps_label := Label.new()
 		dps_label.text = "DPS: %.1f" % total_dps
 		dps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -577,7 +1096,10 @@ func _populate_wave_cards() -> void:
 
 		# Summary line
 		var summary := Label.new()
-		summary.text = "%d units (%d farms) — %s" % [wave.total_units, wave.total_farms, wave.strategy]
+		if wave.get("is_opponent", false):
+			summary.text = "%d units — PvP" % wave.total_units
+		else:
+			summary.text = "%d units (%d farms) — %s" % [wave.total_units, wave.total_farms, wave.strategy]
 		summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		summary.add_theme_font_size_override("font_size", 10)
 		summary.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
@@ -693,28 +1215,39 @@ func _on_wave_selected(idx: int) -> void:
 	_pending_bonus_gold = wave.get("bonus_gold", 0)
 	_hide_wave_select()
 
-	var enemies: Array = wave.enemies
-	var enemy_count: int = enemies.size()
-	for i in range(enemy_count):
-		var entry: Dictionary = enemies[i]
-		var spacing: float = Board.ARENA_HEIGHT / (enemy_count + 1)
-		var raw_pos := Vector2(
-			randf_range(Board.DIVIDER_X + 60, Board.ARENA_WIDTH - 60),
-			spacing * (i + 1)
-		)
-		var pos := board.snap_to_enemy_grid(raw_pos)
-		var unit := _spawn_unit(entry.data, Unit.Team.ENEMY, pos)
-		# Apply level scaling: each level above 1 boosts stats
-		var lvl: int = entry.get("level", 1)
-		if lvl > 1:
-			var scale_factor := 1.0 + (lvl - 1) * 0.45
-			unit.damage = int(ceil(unit.damage * scale_factor))
-			unit.max_hp = int(ceil(unit.max_hp * scale_factor))
-			unit.current_hp = unit.max_hp
-			unit.armor = int(ceil(unit.armor * scale_factor)) if unit.armor > 0 else 0
-			unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.18
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+	if wave.get("is_opponent", false):
+		# PvP: spawn opponent's squad
+		current_opponent_rating = wave.get("opponent_rating", 1000)
+		current_opponent_name = wave.get("opponent_name", "Unknown")
+		battle_enemy_name.text = "vs %s (ELO: %d)" % [current_opponent_name, current_opponent_rating]
+		_spawn_opponent_squad(wave.get("opponent_squad_json", []))
+	else:
+		# AI: spawn procedurally generated enemies
+		current_opponent_rating = 0
+		current_opponent_name = ""
+		battle_enemy_name.text = "vs AI Wave"
+		var enemies: Array = wave.enemies
+		var enemy_count: int = enemies.size()
+		for i in range(enemy_count):
+			var entry: Dictionary = enemies[i]
+			var spacing: float = Board.ARENA_HEIGHT / (enemy_count + 1)
+			var raw_pos := Vector2(
+				randf_range(Board.DIVIDER_X + 60, Board.ARENA_WIDTH - 60),
+				spacing * (i + 1)
+			)
+			var pos := board.snap_to_enemy_grid(raw_pos)
+			var unit := _spawn_unit(entry.data, Unit.Team.ENEMY, pos)
+			# Apply level scaling: each level above 1 boosts stats
+			var lvl: int = entry.get("level", 1)
+			if lvl > 1:
+				var scale_factor := 1.0 + (lvl - 1) * 0.45
+				unit.damage = int(ceil(unit.damage * scale_factor))
+				unit.max_hp = int(ceil(unit.max_hp * scale_factor))
+				unit.current_hp = unit.max_hp
+				unit.armor = int(ceil(unit.armor * scale_factor)) if unit.armor > 0 else 0
+				unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.18
+				unit.health_bar.max_value = unit.max_hp
+				unit.health_bar.value = unit.current_hp
 
 	_restore_squad()
 	if shop_frozen:
@@ -729,18 +1262,19 @@ func _on_wave_selected(idx: int) -> void:
 
 func _build_shop_bar() -> void:
 	shop_bar = HBoxContainer.new()
-	shop_bar.position = Vector2(30, 520)
+	shop_bar.position = Vector2(30, 530)
 	shop_bar.add_theme_constant_override("separation", 5)
 	ui_layer.add_child(shop_bar)
 
 	for i in range(HERO_SHOP_SLOTS + UPGRADE_SHOP_SLOTS):
 		var btn := Button.new()
 		if i < HERO_SHOP_SLOTS:
-			btn.custom_minimum_size = Vector2(130, 80)
+			btn.custom_minimum_size = Vector2(130, 100)
 		else:
-			btn.custom_minimum_size = Vector2(120, 80)
+			btn.custom_minimum_size = Vector2(150, 100)
 		btn.add_theme_font_size_override("font_size", 11)
 		btn.add_theme_constant_override("icon_max_width", 28)
+		btn.clip_contents = true
 		var idx := i
 		btn.pressed.connect(func(): _on_shop_card_pressed(idx))
 		shop_bar.add_child(btn)
@@ -751,30 +1285,33 @@ func _build_shop_bar() -> void:
 	shop_bar.add_child(sep)
 	shop_bar.move_child(sep, HERO_SHOP_SLOTS)
 
-	# Action buttons — row above Ready button
-	action_bar = HBoxContainer.new()
-	action_bar.position = Vector2(1010, 610)
-	action_bar.add_theme_constant_override("separation", 5)
-	ui_layer.add_child(action_bar)
+	# Action icon buttons — stacked vertically at the end of the shop bar
+	action_bar = VBoxContainer.new()
+	action_bar.add_theme_constant_override("separation", 2)
+	action_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	shop_bar.add_child(action_bar)
 
 	reroll_button = Button.new()
-	reroll_button.custom_minimum_size = Vector2(80, 24)
-	reroll_button.add_theme_font_size_override("font_size", 11)
-	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
+	reroll_button.custom_minimum_size = Vector2(50, 28)
+	reroll_button.add_theme_font_size_override("font_size", 13)
+	reroll_button.text = "⚄ %dg" % GameManager.REROLL_COST
+	reroll_button.tooltip_text = "Re-roll Shop (%dg)" % GameManager.REROLL_COST
 	reroll_button.pressed.connect(_on_reroll_pressed)
 	action_bar.add_child(reroll_button)
 
 	freeze_button = Button.new()
-	freeze_button.custom_minimum_size = Vector2(60, 24)
-	freeze_button.add_theme_font_size_override("font_size", 11)
-	freeze_button.text = "Freeze"
+	freeze_button.custom_minimum_size = Vector2(50, 28)
+	freeze_button.add_theme_font_size_override("font_size", 15)
+	freeze_button.text = "🔒"
+	freeze_button.tooltip_text = "Freeze Shop"
 	freeze_button.pressed.connect(_on_freeze_pressed)
 	action_bar.add_child(freeze_button)
 
 	sell_button = Button.new()
-	sell_button.custom_minimum_size = Vector2(50, 24)
-	sell_button.add_theme_font_size_override("font_size", 11)
-	sell_button.text = "Sell"
+	sell_button.custom_minimum_size = Vector2(50, 28)
+	sell_button.add_theme_font_size_override("font_size", 15)
+	sell_button.text = "💰"
+	sell_button.tooltip_text = "Sell Selected Unit"
 	sell_button.pressed.connect(_on_sell_pressed)
 	action_bar.add_child(sell_button)
 
@@ -807,7 +1344,13 @@ func _roll_shop() -> void:
 		weighted_heroes.append(data)
 	for i in range(HERO_SHOP_SLOTS):
 		var data: UnitData = weighted_heroes.pick_random()
-		shop_slots.append({"type": "hero", "data": data, "cost": data.farm_cost, "sold": false})
+		var variant: Dictionary = HeroVariants.random_ability(data.unit_class)
+		var hero_name: String = HeroVariants.random_name(data.unit_class)
+		shop_slots.append({
+			"type": "hero", "data": data, "cost": data.farm_cost, "sold": false,
+			"ability_key": variant.key, "ability_name": variant.name, "ability_desc": variant.desc,
+			"hero_name": hero_name,
+		})
 	var pool = upgrade_pool.filter(func(u):
 		if u.rarity == "Epic": return GameManager.current_round >= 10
 		if u.rarity == "Rare": return GameManager.current_round >= 5
@@ -826,13 +1369,16 @@ func _update_shop_display() -> void:
 		btn.icon = null
 		# Reset any custom style overrides
 		btn.remove_theme_stylebox_override("normal")
+		# Clear any previous card children
+		for child in btn.get_children():
+			child.queue_free()
 		if slot.sold:
 			btn.text = "SOLD"
 			btn.disabled = true
 		elif slot.type == "hero":
 			var data: UnitData = slot.data
 			var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color.WHITE)
-			var label := "%dg [F:%d]\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, data.unit_name]
+			var label := "%dg [F:%d]\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, slot.hero_name]
 			if _find_player_unit_by_class(data.unit_class):
 				label += "\nMerge as EXP"
 			btn.text = label
@@ -840,55 +1386,104 @@ func _update_shop_display() -> void:
 			# Hero icon (small, left-aligned)
 			if data.texture:
 				btn.icon = data.texture
-			# Colored left border accent
+			# Colored left border accent with rounded corners
 			var hero_style := StyleBoxFlat.new()
 			hero_style.bg_color = Color(0.18, 0.18, 0.22)
 			hero_style.border_color = cls_color
 			hero_style.border_width_left = 3
-			hero_style.set_corner_radius_all(3)
+			hero_style.set_corner_radius_all(6)
 			hero_style.set_content_margin_all(4)
 			btn.add_theme_stylebox_override("normal", hero_style)
 		else:
 			var upgrade: Dictionary = slot.data
-			var class_text := ""
-			if upgrade.has("class_req"):
-				class_text = "\n(%s only)" % upgrade.class_req
-			btn.text = "%dg\n%s\n%s\n%s%s" % [upgrade.cost, upgrade.name, upgrade.rarity, upgrade.desc, class_text]
+			btn.text = ""
+			btn.icon = null
 			btn.disabled = false
-			# Buff icon — use rarity icon for class-specific, stat icon otherwise
+			# Card style — rounded, dark bg
+			var rarity_color: Color = RARITY_COLORS.get(upgrade.rarity, Color.WHITE)
+			var card_style := StyleBoxFlat.new()
+			card_style.bg_color = Color(0.14, 0.14, 0.18)
+			card_style.set_corner_radius_all(6)
+			card_style.set_content_margin_all(0)
+			btn.add_theme_stylebox_override("normal", card_style)
+			# Build card layout
+			var margin := MarginContainer.new()
+			margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			margin.add_theme_constant_override("margin_left", 6)
+			margin.add_theme_constant_override("margin_right", 6)
+			margin.add_theme_constant_override("margin_top", 4)
+			margin.add_theme_constant_override("margin_bottom", 4)
+			margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var vbox := VBoxContainer.new()
+			vbox.add_theme_constant_override("separation", 1)
+			vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			# Row 1: Gold cost (right-aligned) over name row
+			var top_row := HBoxContainer.new()
+			top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			# Buff icon (left)
 			var stat_key: String = upgrade.get("stat", "")
+			var icon_tex: Texture2D = null
 			if upgrade.rarity == "Epic" and BUFF_ICONS.has("_epic"):
-				btn.icon = BUFF_ICONS["_epic"]
+				icon_tex = BUFF_ICONS["_epic"]
 			elif upgrade.rarity == "Rare" and upgrade.has("class_req") and BUFF_ICONS.has("_rare"):
-				btn.icon = BUFF_ICONS["_rare"]
+				icon_tex = BUFF_ICONS["_rare"]
 			elif BUFF_ICONS.has(stat_key):
-				btn.icon = BUFF_ICONS[stat_key]
-			# Rarity coloring via left border accent
-			if upgrade.rarity == "Rare":
-				var rare_style := StyleBoxFlat.new()
-				rare_style.bg_color = Color(0.18, 0.18, 0.22)
-				rare_style.border_color = Color(0.65, 0.45, 0.85)
-				rare_style.border_width_left = 3
-				rare_style.set_corner_radius_all(3)
-				rare_style.set_content_margin_all(4)
-				btn.add_theme_stylebox_override("normal", rare_style)
-			elif upgrade.rarity == "Epic":
-				var epic_style := StyleBoxFlat.new()
-				epic_style.bg_color = Color(0.18, 0.18, 0.22)
-				epic_style.border_color = Color(1.0, 0.6, 0.2)
-				epic_style.border_width_left = 3
-				epic_style.set_corner_radius_all(3)
-				epic_style.set_content_margin_all(4)
-				btn.add_theme_stylebox_override("normal", epic_style)
+				icon_tex = BUFF_ICONS[stat_key]
+			if icon_tex:
+				var icon_rect := TextureRect.new()
+				icon_rect.texture = icon_tex
+				icon_rect.custom_minimum_size = Vector2(18, 18)
+				icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+				icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				top_row.add_child(icon_rect)
+			var top_spacer := Control.new()
+			top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			top_row.add_child(top_spacer)
+			var gold_label := Label.new()
+			gold_label.text = "%dg" % upgrade.cost
+			gold_label.add_theme_font_size_override("font_size", 12)
+			gold_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+			gold_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			top_row.add_child(gold_label)
+			vbox.add_child(top_row)
+			# Row 2: Buff name (centered, bold)
+			var name_label := Label.new()
+			name_label.text = upgrade.name
+			name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			name_label.add_theme_font_size_override("font_size", 12)
+			name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			vbox.add_child(name_label)
+			# Row 3: Rarity colored line
+			var rarity_line := ColorRect.new()
+			rarity_line.color = rarity_color
+			rarity_line.custom_minimum_size = Vector2(0, 2)
+			rarity_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			vbox.add_child(rarity_line)
+			# Row 4: Description (word-wrapped)
+			var desc_label := Label.new()
+			desc_label.text = upgrade.desc
+			if upgrade.has("class_req"):
+				desc_label.text += "\n(%s only)" % upgrade.class_req
+			desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			desc_label.add_theme_font_size_override("font_size", 10)
+			desc_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+			desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			desc_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			desc_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			vbox.add_child(desc_label)
+			margin.add_child(vbox)
+			btn.add_child(margin)
 		if i == _selected_shop_slot and not slot.sold:
 			btn.modulate = btn.modulate.lightened(0.35)
 
-	reroll_button.text = "Re-roll (%dg)" % GameManager.REROLL_COST
+	reroll_button.text = "⚄ %dg" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
 	_update_freeze_display()
 
 func _on_shop_card_pressed(idx: int) -> void:
-	if _targeting_upgrade:
+	if _targeting_upgrade or _targeting_merge:
 		return
 	if GameManager.current_phase != GameManager.Phase.PREP:
 		return
@@ -945,20 +1540,39 @@ func _buy_hero(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
 	var data: UnitData = slot.data
 
-	# Auto-merge: if a same-class unit exists and Shift is NOT held, feed as XP
-	var merge_target := _find_player_unit_by_class(data.unit_class)
-	if merge_target and not _shift_held_on_select:
-		if not GameManager.spend_gold(slot.cost):
-			_show_warning("Not enough gold!")
+	# Auto-merge: if same-class units exist and Shift is NOT held, feed as XP
+	if not _shift_held_on_select:
+		var matches := _find_player_units_by_class(data.unit_class)
+		if matches.size() == 1:
+			# Single match — auto-merge immediately
+			if not GameManager.spend_gold(slot.cost):
+				_show_warning("Not enough gold!")
+				return
+			_grant_xp(matches[0], 1)
+			slot.sold = true
+			board.select_unit(matches[0])
+			_show_info_panel(matches[0])
+			_update_shop_display()
+			_update_ui()
+			AudioManager.play("buy")
 			return
-		_grant_xp(merge_target, 1)
-		slot.sold = true
-		board.select_unit(merge_target)
-		_show_info_panel(merge_target)
-		_update_shop_display()
-		_update_ui()
-		AudioManager.play("buy")
-		return
+		elif matches.size() > 1:
+			# Multiple matches — enter merge targeting so player can choose
+			if not GameManager.spend_gold(slot.cost):
+				_show_warning("Not enough gold!")
+				return
+			slot.sold = true
+			_targeting_merge = true
+			_pending_merge_slot = idx
+			board.targeting_class_req = data.unit_class
+			board.targeting_mode = true
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+			_show_warning("Click a %s to merge into" % data.unit_class)
+			_update_shop_display()
+			_update_ui()
+			board.queue_redraw()
+			AudioManager.play("buy")
+			return
 
 	# Spawn new unit — check farm budget
 	if _get_farms_used() + data.pop_cost > GameManager.farms:
@@ -972,7 +1586,7 @@ func _buy_hero(idx: int) -> void:
 		randf_range(60, Board.DIVIDER_X - 60),
 		randf_range(60, Board.ARENA_HEIGHT - 60)
 	))
-	_spawn_unit(data, Unit.Team.PLAYER, default_pos)
+	_spawn_unit(data, Unit.Team.PLAYER, default_pos, slot)
 	slot.sold = true
 	_update_shop_display()
 	_update_ui()
@@ -983,6 +1597,13 @@ func _find_player_unit_by_class(unit_class: String) -> Unit:
 		if unit.unit_data.unit_class == unit_class:
 			return unit
 	return null
+
+func _find_player_units_by_class(unit_class: String) -> Array[Unit]:
+	var result: Array[Unit] = []
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		if unit.unit_data.unit_class == unit_class:
+			result.append(unit)
+	return result
 
 func _buy_upgrade(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
@@ -1080,6 +1701,46 @@ func _cancel_upgrade_targeting() -> void:
 	_update_ui()
 	board.queue_redraw()
 
+func _apply_pending_merge(unit: Unit) -> void:
+	var slot: Dictionary = shop_slots[_pending_merge_slot]
+	var required_class: String = slot.data.unit_class
+
+	if unit.unit_data.unit_class != required_class:
+		_show_warning("Must be a %s!" % required_class)
+		return
+
+	_grant_xp(unit, 1)
+
+	_targeting_merge = false
+	_pending_merge_slot = -1
+	board.targeting_class_req = ""
+	board.targeting_mode = false
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+
+	board.select_unit(unit)
+	_show_info_panel(unit)
+	_update_shop_display()
+	_update_ui()
+	board.queue_redraw()
+
+func _cancel_merge_targeting() -> void:
+	if not _targeting_merge:
+		return
+	var slot: Dictionary = shop_slots[_pending_merge_slot]
+	# Refund gold and notify UI
+	GameManager.gold += slot.cost
+	GameManager.gold_changed.emit(GameManager.gold)
+	slot.sold = false
+
+	_targeting_merge = false
+	_pending_merge_slot = -1
+	board.targeting_class_req = ""
+	board.targeting_mode = false
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	_update_shop_display()
+	_update_ui()
+	board.queue_redraw()
+
 func _on_reroll_pressed() -> void:
 	if GameManager.current_phase != GameManager.Phase.PREP:
 		return
@@ -1090,11 +1751,9 @@ func _on_reroll_pressed() -> void:
 
 func _show_shop() -> void:
 	shop_bar.visible = true
-	action_bar.visible = true
 
 func _hide_shop() -> void:
 	shop_bar.visible = false
-	action_bar.visible = false
 	shop_confirm_bar.visible = false
 
 
@@ -1136,11 +1795,13 @@ func _toggle_freeze() -> void:
 
 func _update_freeze_display() -> void:
 	if shop_frozen:
-		freeze_button.text = "Unfreeze"
+		freeze_button.text = "🔓"
 		freeze_button.modulate = Color(0.5, 0.8, 1.0)
+		freeze_button.tooltip_text = "Unfreeze Shop"
 	else:
-		freeze_button.text = "Freeze"
+		freeze_button.text = "🔒"
 		freeze_button.modulate = Color(1, 1, 1)
+		freeze_button.tooltip_text = "Freeze Shop"
 
 # ── Stat Upgrades ───────────────────────────────────────────
 
@@ -1278,6 +1939,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.damage += 8
 			unit.max_mana += 3
 			unit._update_mana_bar()
+		"hellfire":
+			unit.hellfire = true
 		"divine_covenant":
 			unit.max_hp += 30
 			unit.current_hp += 30
@@ -1551,17 +2214,90 @@ func _restore_squad() -> void:
 
 # ── Unit Spawning ───────────────────────────────────────────
 
-func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2) -> Unit:
+func _spawn_unit(data: UnitData, team: Unit.Team, pos: Vector2, override: Dictionary = {}) -> Unit:
 	var unit: Unit = unit_scene.instantiate()
 	unit.setup(data, team, pos)
-	# Assign random name and ability variant
-	unit.display_name = HeroVariants.random_name(data.unit_class)
+	# Use overrides if provided, otherwise randomize
+	unit.display_name = override.get("hero_name", HeroVariants.random_name(data.unit_class))
 	var variant: Dictionary = HeroVariants.random_ability(data.unit_class)
-	unit.ability_key = variant.key
-	unit.instance_ability_name = variant.name
-	unit.instance_ability_desc = variant.desc
+	unit.ability_key = override.get("ability_key", variant.key)
+	unit.instance_ability_name = override.get("ability_name", variant.name)
+	unit.instance_ability_desc = override.get("ability_desc", variant.desc)
 	board.add_unit(unit)
 	return unit
+
+## Spawn an opponent's squad from their snapshot JSON.
+## Mirrors X positions to the enemy half of the board, restores full stats.
+func _spawn_opponent_squad(squad_json: Array) -> void:
+	var entries := SquadSerializer.json_to_wave_enemies(squad_json)
+	var count := entries.size()
+	for i in range(count):
+		var entry: Dictionary = entries[i]
+		var data: UnitData = entry.get("data")
+		if not data:
+			continue
+		# Mirror player position to enemy half:
+		# Original X is in [0, DIVIDER_X] → mirror to [DIVIDER_X, ARENA_WIDTH]
+		var orig_pos: Vector2 = entry.get("position", Vector2.ZERO)
+		var mirrored_x := Board.ARENA_WIDTH - orig_pos.x
+		var mirrored_pos := Vector2(mirrored_x, orig_pos.y)
+		# Clamp to enemy half and snap to grid
+		mirrored_pos.x = clampf(mirrored_pos.x, Board.DIVIDER_X + 30, Board.ARENA_WIDTH - 30)
+		mirrored_pos.y = clampf(mirrored_pos.y, 30, Board.ARENA_HEIGHT - 30)
+		var pos := board.snap_to_enemy_grid(mirrored_pos)
+		var unit := _spawn_unit(data, Unit.Team.ENEMY, pos)
+
+		# Restore per-instance identity
+		if entry.has("display_name") and entry.display_name != "":
+			unit.display_name = entry.display_name
+		if entry.has("ability_key") and entry.ability_key != "":
+			unit.ability_key = entry.ability_key
+		if entry.has("instance_ability_name"):
+			unit.instance_ability_name = entry.instance_ability_name
+		if entry.has("instance_ability_desc"):
+			unit.instance_ability_desc = entry.instance_ability_desc
+
+		# Restore buff properties
+		unit.necromancy_stacks = entry.get("necromancy_stacks", 0)
+		unit.primed = entry.get("primed", false)
+		unit.poison_power = entry.get("poison_power", 0)
+		unit.thorns_slow = entry.get("thorns_slow", false)
+		unit.lifesteal_pct = entry.get("lifesteal_pct", 0.0)
+		unit.last_stand = entry.get("last_stand", false)
+		unit.relentless = entry.get("relentless", false)
+		unit.sepsis_spread = entry.get("sepsis_spread", 0)
+		unit.living_shield_max = entry.get("living_shield_max", 0)
+		unit.living_shield_hp = entry.get("living_shield_max", 0)
+		unit.invincible_max = entry.get("invincible_max", 0)
+		unit.invincible_charges = entry.get("invincible_max", 0)
+		unit.haymaker_counter = entry.get("haymaker_counter", 0)
+		unit.legion_master = entry.get("legion_master", false)
+
+		# Restore full stats from snapshot
+		if entry.has("stats"):
+			var s: Dictionary = entry.stats
+			unit.damage = s.get("damage", unit.damage)
+			unit.max_hp = s.get("max_hp", unit.max_hp)
+			unit.current_hp = unit.max_hp
+			unit.attacks_per_second = s.get("attacks_per_second", unit.attacks_per_second)
+			unit.attack_range = s.get("attack_range", unit.attack_range)
+			unit.ability_range = s.get("ability_range", unit.unit_data.ability_range)
+			unit.move_speed = s.get("move_speed", unit.move_speed)
+			unit.max_armor = s.get("max_armor", s.get("armor", unit.armor))
+			unit.armor = unit.max_armor
+			unit.evasion = s.get("evasion", unit.evasion)
+			unit.crit_chance = s.get("crit_chance", unit.crit_chance)
+			unit.skill_proc_chance = s.get("skill_proc_chance", unit.skill_proc_chance)
+			unit.max_mana = s.get("max_mana", unit.max_mana)
+			unit.current_mana = 0
+			unit.mana_cost_per_attack = s.get("mana_cost_per_attack", unit.mana_cost_per_attack)
+			unit.mana_regen_per_second = s.get("mana_regen_per_second", unit.mana_regen_per_second)
+			unit.hp_regen_per_second = s.get("hp_regen_per_second", 0.0)
+			unit.health_bar.max_value = unit.max_hp
+			unit.health_bar.value = unit.current_hp
+			unit._update_armor_bar()
+			unit.update_scale()
+
 
 func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit) -> void:
 	var archer := _spawn_unit(data, team, pos)
@@ -1645,6 +2381,16 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 # ── Input (Drag & Drop + Selection) ────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	# ESC to show quit dialog (when nothing else is active)
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if quit_overlay.visible:
+			quit_overlay.visible = false
+			return
+		var phase := GameManager.current_phase
+		if phase == GameManager.Phase.WAVE_SELECT or (phase == GameManager.Phase.PREP and _selected_shop_slot < 0 and not _targeting_upgrade and not _targeting_merge):
+			quit_overlay.visible = true
+			return
+
 	if GameManager.current_phase == GameManager.Phase.WAVE_SELECT:
 		return
 
@@ -1657,13 +2403,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			_cancel_shop_selection()
 			return
 
-	# Cancel upgrade targeting on right-click or Escape
+	# Cancel upgrade/merge targeting on right-click or Escape
 	if _targeting_upgrade:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_cancel_upgrade_targeting()
 			return
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 			_cancel_upgrade_targeting()
+			return
+	if _targeting_merge:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			_cancel_merge_targeting()
+			return
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			_cancel_merge_targeting()
 			return
 
 	# Keyboard shortcuts
@@ -1691,6 +2444,13 @@ func _on_mouse_pressed(local_pos: Vector2) -> void:
 		var clicked_unit := board.get_unit_at(local_pos)
 		if clicked_unit and clicked_unit.team == Unit.Team.PLAYER:
 			_apply_pending_upgrade(clicked_unit)
+		return
+
+	# Merge targeting: only accept clicks on matching-class player units
+	if _targeting_merge:
+		var clicked_unit := board.get_unit_at(local_pos)
+		if clicked_unit and clicked_unit.team == Unit.Team.PLAYER:
+			_apply_pending_merge(clicked_unit)
 		return
 
 	var clicked_unit := board.get_unit_at(local_pos)
@@ -1736,7 +2496,7 @@ func _on_mouse_released(_local_pos: Vector2) -> void:
 # ── Battle Flow ─────────────────────────────────────────────
 
 func _on_ready_pressed() -> void:
-	if _targeting_upgrade:
+	if _targeting_upgrade or _targeting_merge:
 		return
 	if GameManager.current_phase != GameManager.Phase.PREP:
 		return
@@ -1745,6 +2505,11 @@ func _on_ready_pressed() -> void:
 		return
 	_cancel_shop_selection()
 	_save_squad()
+	# Upload squad snapshot if ranked mode
+	var bm_ready = get_node_or_null("/root/BackendManager")
+	if ranked_mode and bm_ready and bm_ready.is_online:
+		var squad_json := SquadSerializer.squad_to_json(player_squad)
+		bm_ready.upload_squad_snapshot(squad_json, GameManager.current_round)
 	_hide_shop()
 	_hide_info_panel()
 	result_label.text = ""
@@ -1755,49 +2520,97 @@ func _on_ready_pressed() -> void:
 	combat_system.start_combat()
 	_update_ui()
 	AudioManager.play("round_start")
+	AudioManager.play_music("battle_music")
 
 func _on_combat_ended(player_won: bool) -> void:
+	AudioManager.stop_music()
 	_apply_survival_regen_bonuses()
-	var is_first_loss := not player_won and not GameManager.first_loss_given
 	GameManager.end_battle(player_won)
+
+	# ELO calculation for ranked PvP
+	var elo_text := ""
+	var bm_elo = get_node_or_null("/root/BackendManager")
+	if ranked_mode and current_opponent_rating > 0 and bm_elo:
+		var old_rating: int = bm_elo.player_rating
+		var new_rating := EloCalculator.new_rating(old_rating, current_opponent_rating, player_won)
+		elo_text = " (%s ELO)" % EloCalculator.rating_change_text(old_rating, current_opponent_rating, player_won)
+		bm_elo.update_rating(new_rating)
+		bm_elo.update_win_loss(player_won)
+
+	var vs_text := " vs %s" % current_opponent_name if current_opponent_name != "" else ""
+	var gold_won: int = 0
+	var bounty_gold: int = combat_system.kill_bounty_gold
+	var hero_income: int = 0
 	if player_won:
-		if _pending_bonus_gold > 0:
-			GameManager.gold += _pending_bonus_gold
+		# Add bonus gold now so interest calculation includes it
+		var bonus: int = _pending_bonus_gold
+		_pending_bonus_gold = 0
+		hero_income = GameManager.calculate_hero_income(player_squad)
+		var extra := bonus + bounty_gold + hero_income
+		if extra > 0:
+			GameManager.gold += extra
 			GameManager.gold_changed.emit(GameManager.gold)
-			result_label.text = "VICTORY! (+%dg bonus)" % _pending_bonus_gold
-			_pending_bonus_gold = 0
-		else:
-			result_label.text = "VICTORY!"
-		result_label.add_theme_color_override("font_color", Color.GREEN)
+		# Preview upcoming income (advance_round will add this; extra is already in GameManager.gold)
+		gold_won = GameManager.calculate_income()
 		AudioManager.play("victory")
 	else:
-		if is_first_loss and GameManager.lives > 0:
-			result_label.text = "DEFEAT! — Rematch... (+50g bonus!)"
-		else:
-			result_label.text = "DEFEAT! — Rematch..."
-		result_label.add_theme_color_override("font_color", Color.RED)
+		# Partial reward: kill bounty even on defeat
+		if bounty_gold > 0:
+			GameManager.gold += bounty_gold
+			GameManager.gold_changed.emit(GameManager.gold)
 		AudioManager.play("defeat")
 	_update_ui()
 
-	if GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
-		result_label.text = "GAME COMPLETE!"
-		_show_return_to_menu_button()
-	elif GameManager.lives > 0:
-		if player_won and GameManager.current_round < GameManager.MAX_ROUNDS:
-			get_tree().create_timer(2.0).timeout.connect(_start_next_round)
-		elif not player_won:
-			get_tree().create_timer(2.0).timeout.connect(_start_rematch)
+	# Autosave — skip on game_complete or game_over (those delete the save)
+	var is_game_complete := GameManager.current_round >= GameManager.MAX_ROUNDS and player_won
+	var is_game_over := GameManager.lives <= 0
+	if not is_game_complete and not is_game_over:
+		_save_squad()
+		GameManager.save_game(SquadSerializer.squad_to_json(player_squad), ranked_mode)
 
-func _show_return_to_menu_button() -> void:
-	var btn := Button.new()
-	btn.text = "Return to Menu"
-	btn.custom_minimum_size = Vector2(200, 40)
-	btn.position = Vector2(540, 340)
-	btn.pressed.connect(func():
-		GameManager.reset()
-		get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
-	)
-	ui_layer.add_child(btn)
+	# Build income breakdown lines
+	var income_lines: Array[String] = []
+	if bounty_gold > 0:
+		income_lines.append("Kill bounty: +%dg" % bounty_gold)
+	if hero_income > 0:
+		income_lines.append("Hero income: +%dg" % hero_income)
+
+	if GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
+		_last_result = "game_complete"
+		ProfileManager.record_win(GameManager.current_round)
+		var details := "All rounds cleared%s!%s" % [vs_text, elo_text]
+		if not income_lines.is_empty():
+			details += "\n" + "\n".join(income_lines)
+		_show_result_overlay("GAME COMPLETE!", Color.GREEN, details, gold_won)
+		result_continue_btn.text = "Return to Menu"
+	elif GameManager.lives > 0:
+		if player_won:
+			_last_result = "victory"
+			var details_parts: Array[String] = []
+			if vs_text != "":
+				details_parts.append("Defeated%s" % vs_text)
+			if elo_text != "":
+				details_parts.append(elo_text.strip_edges())
+			details_parts.append_array(income_lines)
+			_show_result_overlay("VICTORY!", Color.GREEN, "\n".join(details_parts), gold_won)
+		else:
+			_last_result = "defeat"
+			var details_parts: Array[String] = []
+			if vs_text != "":
+				details_parts.append("Lost%s" % vs_text)
+			if elo_text != "":
+				details_parts.append(elo_text.strip_edges())
+			details_parts.append_array(income_lines)
+			_show_result_overlay("DEFEAT!", Color.RED, "\n".join(details_parts))
+
+func _on_combat_draw() -> void:
+	AudioManager.stop_music()
+	_apply_survival_regen_bonuses()
+	combat_system.stop_combat()
+	AudioManager.play("round_start")
+	_update_ui()
+	_last_result = "draw"
+	_show_result_overlay("DRAW!", Color(1.0, 1.0, 0.3), "Combat timed out — no winner.")
 
 func _apply_survival_regen_bonuses() -> void:
 	for entry in player_squad:
@@ -1836,6 +2649,8 @@ func _start_rematch() -> void:
 func _on_phase_changed(new_phase: GameManager.Phase) -> void:
 	if _targeting_upgrade:
 		_cancel_upgrade_targeting()
+	if _targeting_merge:
+		_cancel_merge_targeting()
 	if new_phase == GameManager.Phase.WAVE_SELECT:
 		_show_wave_select()
 		_hide_battle_ui()
@@ -1844,12 +2659,13 @@ func _on_phase_changed(new_phase: GameManager.Phase) -> void:
 	_update_ui()
 
 func _on_game_over() -> void:
-	result_label.text = "GAME OVER"
-	result_label.add_theme_color_override("font_color", Color.RED)
 	ready_button.disabled = true
 	_hide_shop()
 	AudioManager.play("game_over")
-	_show_return_to_menu_button()
+	_last_result = "game_over"
+	ProfileManager.record_loss(GameManager.current_round)
+	_show_result_overlay("GAME OVER", Color.RED, "You ran out of lives!")
+	result_continue_btn.text = "Return to Menu"
 
 # ── Farm Helpers ─────────────────────────────────────────────
 
@@ -1871,7 +2687,11 @@ func _on_buy_farm_pressed() -> void:
 # ── UI Updates ──────────────────────────────────────────────
 
 func _update_ui() -> void:
-	round_label.text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	var round_text := "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	var bm_ui = get_node_or_null("/root/BackendManager")
+	if ranked_mode and bm_ui:
+		round_text += "  |  ELO: %d" % bm_ui.player_rating
+	round_label.text = round_text
 	lives_label.text = "Lives: %d" % GameManager.lives
 	gold_label.text = "Gold: %d" % GameManager.gold
 	farms_label.text = "Farms: %d/%d" % [_get_farms_used(), GameManager.farms]
@@ -1909,18 +2729,51 @@ func _show_info_panel(unit: Unit) -> void:
 	var is_player := unit.team == Unit.Team.PLAYER
 	var can_buy := is_player and GameManager.current_phase == GameManager.Phase.PREP
 
-	# Header
-	var header := Label.new()
-	header.add_theme_font_size_override("font_size", 16)
-	var unit_name := unit.display_name if unit.display_name != "" else unit.unit_data.unit_name
-	var header_text := "%s\n%s  (Cost: %dg  Farms: %d)" % [unit_name, unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
-	header_text += "\nLevel %d  xp %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
-	header.text = header_text
-	header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info_panel.add_child(header)
+	# Class-colored header panel
+	var cls_color: Color = CLASS_COLORS.get(unit.unit_data.unit_class, Color(0.5, 0.5, 0.5))
+	var header_panel := PanelContainer.new()
+	var header_style := StyleBoxFlat.new()
+	header_style.bg_color = Color(cls_color.r, cls_color.g, cls_color.b, 0.25)
+	header_style.border_color = Color(cls_color.r, cls_color.g, cls_color.b, 0.6)
+	header_style.border_width_left = 3
+	header_style.border_width_top = 0
+	header_style.border_width_right = 0
+	header_style.border_width_bottom = 0
+	header_style.content_margin_left = 8.0
+	header_style.content_margin_right = 8.0
+	header_style.content_margin_top = 6.0
+	header_style.content_margin_bottom = 6.0
+	header_style.corner_radius_top_left = 4
+	header_style.corner_radius_top_right = 4
+	header_style.corner_radius_bottom_left = 4
+	header_style.corner_radius_bottom_right = 4
+	header_panel.add_theme_stylebox_override("panel", header_style)
+	header_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	info_panel.add_child(HSeparator.new())
+	var header_vbox := VBoxContainer.new()
+	header_vbox.add_theme_constant_override("separation", 2)
+
+	var unit_name := unit.display_name if unit.display_name != "" else unit.unit_data.unit_name
+	var name_label := Label.new()
+	name_label.add_theme_font_size_override("font_size", 16)
+	name_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	name_label.text = unit_name
+	header_vbox.add_child(name_label)
+
+	var class_label := Label.new()
+	class_label.add_theme_font_size_override("font_size", 13)
+	class_label.add_theme_color_override("font_color", cls_color.lightened(0.3))
+	class_label.text = "%s  •  %dg  •  %d farms" % [unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
+	header_vbox.add_child(class_label)
+
+	var level_label := Label.new()
+	level_label.add_theme_font_size_override("font_size", 12)
+	level_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	level_label.text = "Level %d  •  XP %d/%d" % [unit.level, unit.xp, Unit.XP_TO_LEVEL]
+	header_vbox.add_child(level_label)
+
+	header_panel.add_child(header_vbox)
+	info_panel.add_child(header_panel)
 
 	# Stats with upgrade buttons
 	_add_stat_row(unit, "damage", "Damage", "%d" % unit.damage, can_buy, 1.0)
@@ -2084,17 +2937,47 @@ func _show_shop_preview(idx: int) -> void:
 
 	if slot.type == "hero":
 		var data: UnitData = slot.data
-		var header := Label.new()
-		header.add_theme_font_size_override("font_size", 16)
-		header.text = "%s\n%s  (Cost: %dg  Farms: %d)" % [data.unit_name, data.unit_class, data.farm_cost, data.pop_cost]
+		var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color(0.5, 0.5, 0.5))
+		var header_panel := PanelContainer.new()
+		var header_style := StyleBoxFlat.new()
+		header_style.bg_color = Color(cls_color.r, cls_color.g, cls_color.b, 0.25)
+		header_style.border_color = Color(cls_color.r, cls_color.g, cls_color.b, 0.6)
+		header_style.border_width_left = 3
+		header_style.content_margin_left = 8.0
+		header_style.content_margin_right = 8.0
+		header_style.content_margin_top = 6.0
+		header_style.content_margin_bottom = 6.0
+		header_style.corner_radius_top_left = 4
+		header_style.corner_radius_top_right = 4
+		header_style.corner_radius_bottom_left = 4
+		header_style.corner_radius_bottom_right = 4
+		header_panel.add_theme_stylebox_override("panel", header_style)
+		header_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		var header_vbox := VBoxContainer.new()
+		header_vbox.add_theme_constant_override("separation", 2)
+
+		var name_label := Label.new()
+		name_label.add_theme_font_size_override("font_size", 16)
+		name_label.text = slot.hero_name
+		header_vbox.add_child(name_label)
+
+		var class_label := Label.new()
+		class_label.add_theme_font_size_override("font_size", 13)
+		class_label.add_theme_color_override("font_color", cls_color.lightened(0.3))
+		class_label.text = "%s  •  %dg  •  %d farms" % [data.unit_class, data.farm_cost, data.pop_cost]
+		header_vbox.add_child(class_label)
+
 		var merge_target := _find_player_unit_by_class(data.unit_class)
 		if merge_target:
-			header.text += "\nAuto-merge into existing unit"
-		header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info_panel.add_child(header)
+			var merge_label := Label.new()
+			merge_label.add_theme_font_size_override("font_size", 11)
+			merge_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
+			merge_label.text = "Auto-merge into existing unit"
+			header_vbox.add_child(merge_label)
 
-		info_panel.add_child(HSeparator.new())
+		header_panel.add_child(header_vbox)
+		info_panel.add_child(header_panel)
 
 		var stats := Label.new()
 		stats.add_theme_font_size_override("font_size", 13)
@@ -2109,17 +2992,9 @@ func _show_shop_preview(idx: int) -> void:
 
 		var extras := Label.new()
 		extras.add_theme_font_size_override("font_size", 12)
-		# Show all possible ability variants for this class
-		var variants: Array = HeroVariants.ABILITY_VARIANTS.get(data.unit_class, [])
-		var text := ""
-		if variants.size() > 0:
-			text += "Possible Abilities:"
-			for v in variants:
-				text += "\n  %s — %s" % [v.name, v.desc]
-		else:
-			text += "Ability: %s" % data.ability_name
-			if data.ability_desc != "":
-				text += "\n  %s" % data.ability_desc
+		var text := "Ability: %s" % slot.ability_name
+		if slot.ability_desc != "":
+			text += "\n  %s" % slot.ability_desc
 		if data.skill_name != "":
 			text += "\nSkill: %s" % data.skill_name
 			if data.skill_desc != "":

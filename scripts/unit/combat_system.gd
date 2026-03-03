@@ -2,12 +2,38 @@ class_name CombatSystem
 extends Node
 
 signal combat_ended(player_won: bool)
+signal combat_draw()
 signal summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit)
 signal combat_event(text: String)
 signal tick_completed()
 
 const TICK_INTERVAL: float = 0.5
 const MAX_COMBAT_TIME: float = 60.0  # stalemate after 60 seconds
+
+# Class-colored ability effects
+const ABILITY_COLORS: Dictionary = {
+	"Grunt": Color(0.9, 0.3, 0.2),       # Red-orange
+	"Tank": Color(0.4, 0.5, 0.7),         # Steel blue
+	"Assassin": Color(0.6, 0.2, 0.8),     # Purple
+	"Archer": Color(0.2, 0.8, 0.3),       # Green
+	"Paladin": Color(1.0, 0.85, 0.3),     # Gold
+	"Warlock": Color(0.5, 0.1, 0.6),      # Dark purple
+	"Herbalist": Color(0.3, 0.75, 0.2),   # Nature green
+	"Priest": Color(1.0, 1.0, 0.7),       # Holy white-yellow
+	"Summoner": Color(0.3, 0.9, 0.8),     # Teal
+}
+
+const ABILITY_SOUND_MAP: Dictionary = {
+	"Grunt": "ability_melee",
+	"Tank": "ability_melee",
+	"Assassin": "ability_stealth",
+	"Archer": "ability_ranged",
+	"Paladin": "ability_holy",
+	"Warlock": "ability_dark",
+	"Herbalist": "ability_nature",
+	"Priest": "heal",
+	"Summoner": "summon",
+}
 
 var board: Board
 var is_fighting: bool = false
@@ -18,6 +44,7 @@ var archer_data: UnitData = preload("res://resources/units/archer.tres")
 var tank_data: UnitData = preload("res://resources/units/tank.tres")
 var warlock_data: UnitData = preload("res://resources/units/warlock.tres")
 var skeleton_archer_data: UnitData = preload("res://resources/units/skeleton_archer.tres")
+var kill_bounty_gold: int = 0
 
 func setup(b: Board) -> void:
 	board = b
@@ -26,6 +53,7 @@ func start_combat() -> void:
 	is_fighting = true
 	tick_timer = 0.0
 	combat_elapsed = 0.0
+	kill_bounty_gold = 0
 	survival_times.clear()
 	for unit in board.all_units:
 		unit.attack_timer = 0.0
@@ -56,6 +84,13 @@ func _record_surviving_player_times() -> void:
 		if not unit.is_dead and unit.display_name != "":
 			survival_times[unit.display_name] = combat_elapsed
 
+func _award_kill_bounty(unit: Unit) -> void:
+	if unit.team != Unit.Team.ENEMY:
+		return
+	var bounty: int = unit.unit_data.farm_cost
+	kill_bounty_gold += bounty
+	combat_event.emit("[color=yellow]+%dg bounty[/color]" % bounty)
+
 func _process(delta: float) -> void:
 	if not is_fighting:
 		return
@@ -82,12 +117,12 @@ func _process_tick() -> void:
 		_record_surviving_player_times()
 		combat_ended.emit(true)
 		return
-	# Stalemate — if combat drags on too long, attacker (player) loses
+	# Stalemate — if combat drags on too long, it's a draw (no life lost)
 	if combat_elapsed >= MAX_COMBAT_TIME:
 		is_fighting = false
 		_record_surviving_player_times()
-		combat_event.emit("[color=yellow]Stalemate! Combat timed out after %ds.[/color]" % int(MAX_COMBAT_TIME))
-		combat_ended.emit(false)
+		combat_event.emit("[color=yellow]Draw! Combat timed out — no winner.[/color]")
+		combat_draw.emit()
 		return
 
 	# Process all living units
@@ -129,6 +164,8 @@ func _process_tick() -> void:
 			unit.health_bar.value = unit.current_hp
 			if unit.current_hp <= 0:
 				unit.die()
+				_award_kill_bounty(unit)
+				AudioManager.play("death")
 				board.remove_unit(unit)
 				continue
 
@@ -139,6 +176,8 @@ func _process_tick() -> void:
 			unit.health_bar.value = unit.current_hp
 			if unit.current_hp <= 0:
 				unit.die()
+				_award_kill_bounty(unit)
+				AudioManager.play("death")
 				board.remove_unit(unit)
 				continue
 
@@ -328,6 +367,7 @@ func _attack(attacker: Unit, target: Unit) -> void:
 				nearby.corrosive_dot += attacker.sepsis_spread
 
 	if target.is_dead:
+		_award_kill_bounty(target)
 		combat_event.emit("[color=%s]%s kills %s[/color]" % [atk_tag, a_name, t_name])
 		AudioManager.play("death")
 		# Relentless: on kill, gain permanent stats
@@ -372,7 +412,7 @@ func _trigger_ability(unit: Unit) -> void:
 		# ── Priest ── (prioritizes poisoned allies)
 		"priest_heal":
 			var allies := board.get_units_on_team(unit.team)
-			var heal_amount := int(unit.damage * 4.0)
+			var heal_amount := int(unit.damage * 5.0)
 			var healed := 0
 			var cleansed := 0
 			for ally in allies:
@@ -391,7 +431,6 @@ func _trigger_ability(unit: Unit) -> void:
 				msg += " Cleanses poison from %d!" % cleansed
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("heal")
 		"priest_shield":
 			var allies := board.get_units_on_team(unit.team)
 			var target_ally: Unit = null
@@ -416,7 +455,6 @@ func _trigger_ability(unit: Unit) -> void:
 				target_ally._update_armor_bar()
 				var t_name := target_ally.display_name if target_ally.display_name != "" else target_ally.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s — +%d armor![/color]" % [team_tag, u_name, ab_name, t_name, shield_amount])
-			AudioManager.play("heal")
 		"priest_purify":
 			var allies := board.get_units_on_team(unit.team)
 			var target_ally: Unit = null
@@ -435,7 +473,7 @@ func _trigger_ability(unit: Unit) -> void:
 				elif ally.poison_dot <= 0 and target_ally.poison_dot <= 0 and ally.current_hp < target_ally.current_hp:
 					target_ally = ally
 			if target_ally:
-				var heal_amount := int(unit.damage * 8.0)
+				var heal_amount := int(unit.damage * 10.0)
 				target_ally.current_hp = mini(target_ally.current_hp + heal_amount, target_ally.max_hp)
 				target_ally.health_bar.value = target_ally.current_hp
 				target_ally.crit_vulnerability = 0.0
@@ -447,22 +485,25 @@ func _trigger_ability(unit: Unit) -> void:
 					msg += " & cleanses poison"
 				msg += "![/color]"
 				combat_event.emit(msg)
-			AudioManager.play("heal")
 
 		# ── Warlock ──
-		"warlock_curse":
+		"warlock_soulfire":
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
-			var cursed := 0
+			var soulfire_dmg := int(unit.damage * 2.0)
+			var hit_count := 0
 			for enemy in enemies:
 				if enemy.is_dead:
 					continue
 				if unit.position.distance_to(enemy.position) <= unit.ability_range:
-					enemy.crit_vulnerability += 20.0
-					cursed += 1
-			combat_event.emit("[color=%s]%s casts %s — %d enemies take +20%% crit![/color]" % [team_tag, u_name, ab_name, cursed])
-			AudioManager.play("curse")
+					enemy.take_damage(soulfire_dmg)
+					hit_count += 1
+					if enemy.is_dead:
+						_award_kill_bounty(enemy)
+						board.remove_unit(enemy)
+			combat_event.emit("[color=%s]%s casts %s — hits %d enemies for %d![/color]" % [team_tag, u_name, ab_name, hit_count, soulfire_dmg])
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Warlock", Color.WHITE))
 		"warlock_drain":
 			var drain_target := board.find_nearest_enemy(unit)
 			if drain_target and not drain_target.is_dead:
@@ -473,8 +514,8 @@ func _trigger_ability(unit: Unit) -> void:
 				var t_name := drain_target.display_name if drain_target.display_name != "" else drain_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s — drains %d HP![/color]" % [team_tag, u_name, ab_name, t_name, drain_dmg])
 				if drain_target.is_dead:
+					_award_kill_bounty(drain_target)
 					board.remove_unit(drain_target)
-			AudioManager.play("curse")
 		"warlock_bolt":
 			var bolt_target := board.find_nearest_enemy(unit)
 			if bolt_target and not bolt_target.is_dead:
@@ -483,9 +524,30 @@ func _trigger_ability(unit: Unit) -> void:
 				var t_name := bolt_target.display_name if bolt_target.display_name != "" else bolt_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s for %d![/color]" % [team_tag, u_name, ab_name, t_name, result.damage])
 				if bolt_target.is_dead:
+					_award_kill_bounty(bolt_target)
 					board.remove_unit(bolt_target)
-			AudioManager.play("curse")
 
+	# Hellfire upgrade: Warlock AoE splash after Drain/Bolt abilities
+	if unit.unit_data.unit_class == "Warlock" and unit.hellfire and unit.ability_key in ["warlock_drain", "warlock_bolt"]:
+		var hf_enemies := board.get_units_on_team(
+			Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
+		)
+		var splash_dmg := int(unit.damage * 0.5)
+		var splash_hits := 0
+		for enemy in hf_enemies:
+			if enemy.is_dead:
+				continue
+			if unit.position.distance_to(enemy.position) <= unit.ability_range:
+				enemy.take_damage(splash_dmg)
+				splash_hits += 1
+				if enemy.is_dead:
+					_award_kill_bounty(enemy)
+					board.remove_unit(enemy)
+		if splash_hits > 0:
+			combat_event.emit("[color=%s]%s's Hellfire blasts %d enemies for %d![/color]" % [team_tag, u_name, splash_hits, splash_dmg])
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Warlock", Color.WHITE))
+
+	match unit.ability_key:
 		# ── Herbalist ──
 		"herbalist_poison":
 			var enemies := board.get_units_on_team(
@@ -501,9 +563,10 @@ func _trigger_ability(unit: Unit) -> void:
 				enemy.take_damage(poison_dmg)
 				poisoned += 1
 				if enemy.is_dead:
+					_award_kill_bounty(enemy)
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s casts %s — poisons %d enemies for %d![/color]" % [team_tag, u_name, ab_name, poisoned, poison_dmg])
-			AudioManager.play("poison")
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Herbalist", Color.WHITE))
 		"herbalist_regen":
 			var allies := board.get_units_on_team(unit.team)
 			var heal_amount := int(unit.damage * 2.0)
@@ -517,7 +580,6 @@ func _trigger_ability(unit: Unit) -> void:
 				ally.health_bar.value = ally.current_hp
 				healed += 1
 			combat_event.emit("[color=%s]%s casts %s — heals %d allies for %d![/color]" % [team_tag, u_name, ab_name, healed, heal_amount])
-			AudioManager.play("heal")
 		"herbalist_burst":
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
@@ -531,38 +593,52 @@ func _trigger_ability(unit: Unit) -> void:
 					enemy.take_damage(burst_dmg)
 					hit_count += 1
 					if enemy.is_dead:
+						_award_kill_bounty(enemy)
 						board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s casts %s — hits %d enemies for %d![/color]" % [team_tag, u_name, ab_name, hit_count, burst_dmg])
-			AudioManager.play("poison")
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Herbalist", Color.WHITE))
 
 		# ── Grunt ──
 		"grunt_frenzy":
 			unit.attacks_per_second *= 1.3
-			var frenzy_buffed := 0
+			var frenzy_allies: Array[Unit] = []
 			for ally in board.get_units_on_team(unit.team):
 				if ally.is_dead or ally == unit:
 					continue
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.attacks_per_second *= 1.1
-					frenzy_buffed += 1
+					frenzy_allies.append(ally)
 			var msg := "[color=%s]%s enters %s — attack speed up!" % [team_tag, u_name, ab_name]
-			if frenzy_buffed > 0:
-				msg += " %d nearby allies gain +10%% atk speed." % frenzy_buffed
+			if frenzy_allies.size() > 0:
+				msg += " %d nearby allies gain +10%% atk speed." % frenzy_allies.size()
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("ability")
+			# Revert after 3 seconds
+			var frenzy_revert := unit.create_tween()
+			frenzy_revert.tween_callback(func():
+				if is_instance_valid(unit) and not unit.is_dead:
+					unit.attacks_per_second /= 1.3
+				for a in frenzy_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.attacks_per_second /= 1.1
+			).set_delay(3.0)
 		"grunt_warcry":
-			var allies := board.get_units_on_team(unit.team)
-			var buffed := 0
-			for ally in allies:
+			var warcry_allies: Array[Unit] = []
+			for ally in board.get_units_on_team(unit.team):
 				if ally.is_dead:
 					continue
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
 				ally.damage += 3
-				buffed += 1
-			combat_event.emit("[color=%s]%s uses %s — %d allies gain +3 damage![/color]" % [team_tag, u_name, ab_name, buffed])
-			AudioManager.play("ability")
+				warcry_allies.append(ally)
+			combat_event.emit("[color=%s]%s uses %s — %d allies gain +3 damage![/color]" % [team_tag, u_name, ab_name, warcry_allies.size()])
+			# Revert after 3 seconds
+			var warcry_revert := unit.create_tween()
+			warcry_revert.tween_callback(func():
+				for a in warcry_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.damage -= 3
+			).set_delay(3.0)
 		"grunt_cleave":
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
@@ -576,9 +652,10 @@ func _trigger_ability(unit: Unit) -> void:
 					enemy.take_damage(cleave_dmg)
 					hit_count += 1
 					if enemy.is_dead:
+						_award_kill_bounty(enemy)
 						board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s uses %s — cleaves %d enemies for %d![/color]" % [team_tag, u_name, ab_name, hit_count, cleave_dmg])
-			AudioManager.play("ability")
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Grunt", Color.WHITE))
 
 		# ── Tank ──
 		"tank_bash":
@@ -588,8 +665,8 @@ func _trigger_ability(unit: Unit) -> void:
 				var bash_result := bash_target.take_damage(bash_dmg)
 				var t_name := bash_target.display_name if bash_target.display_name != "" else bash_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s uses %s on %s for %d![/color]" % [team_tag, u_name, ab_name, t_name, bash_result.damage])
-				AudioManager.play("ability")
 				if bash_target.is_dead:
+					_award_kill_bounty(bash_target)
 					combat_event.emit("[color=%s]%s kills %s[/color]" % [team_tag, u_name, t_name])
 					board.remove_unit(bash_target)
 			else:
@@ -611,13 +688,19 @@ func _trigger_ability(unit: Unit) -> void:
 			unit.max_armor = maxi(unit.max_armor, unit.armor)
 			unit._update_armor_bar()
 			combat_event.emit("[color=%s]%s uses %s — taunts %d enemies, +15 armor![/color]" % [team_tag, u_name, ab_name, taunted])
-			AudioManager.play("ability")
 		"tank_fortify":
 			var fortify_armor := int(unit.max_hp * 0.5)
 			unit.armor += fortify_armor
 			unit.max_armor = maxi(unit.max_armor, unit.armor)
 			unit._update_armor_bar()
+			var saved_speed := unit.move_speed
 			unit.move_speed = 0.0
+			# Restore speed after 1 tick
+			var speed_tween := unit.create_tween()
+			speed_tween.tween_callback(func():
+				if is_instance_valid(unit) and not unit.is_dead:
+					unit.move_speed = saved_speed
+			).set_delay(TICK_INTERVAL)
 			var fortify_buffed := 0
 			var ally_armor := int(fortify_armor * 0.25)
 			for ally in board.get_units_on_team(unit.team):
@@ -633,63 +716,88 @@ func _trigger_ability(unit: Unit) -> void:
 				msg += " %d nearby allies gain +%d armor." % [fortify_buffed, ally_armor]
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("ability")
 
 		# ── Assassin ──
 		"assassin_shadow":
 			unit.crit_chance += 50.0
-			var shadow_buffed := 0
+			var shadow_allies: Array[Unit] = []
 			for ally in board.get_units_on_team(unit.team):
 				if ally.is_dead or ally == unit:
 					continue
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.crit_chance += 10.0
-					shadow_buffed += 1
+					shadow_allies.append(ally)
 			var msg := "[color=%s]%s prepares %s — next hit is lethal!" % [team_tag, u_name, ab_name]
-			if shadow_buffed > 0:
-				msg += " %d nearby allies gain +10%% crit." % shadow_buffed
+			if shadow_allies.size() > 0:
+				msg += " %d nearby allies gain +10%% crit." % shadow_allies.size()
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("ability")
+			# Revert after 3 seconds
+			var shadow_revert := unit.create_tween()
+			shadow_revert.tween_callback(func():
+				if is_instance_valid(unit) and not unit.is_dead:
+					unit.crit_chance -= 50.0
+				for a in shadow_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.crit_chance -= 10.0
+			).set_delay(3.0)
 		"assassin_poison":
-			# Bonus damage on next 3 attacks simulated as +damage buff
+			# Bonus damage for 3 seconds
 			var bonus := int(unit.damage * 0.8)
-			unit.damage += bonus * 3
-			var half_bonus := int(bonus * 1.5)  # half of (bonus * 3)
-			var poison_buffed := 0
+			var self_bonus := bonus * 3
+			unit.damage += self_bonus
+			var half_bonus := int(bonus * 1.5)
+			var poison_allies: Array[Unit] = []
 			for ally in board.get_units_on_team(unit.team):
 				if ally.is_dead or ally == unit:
 					continue
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.damage += half_bonus
-					poison_buffed += 1
-			var msg := "[color=%s]%s coats %s — +%d bonus damage!" % [team_tag, u_name, ab_name, bonus * 3]
-			if poison_buffed > 0:
-				msg += " %d nearby allies gain +%d damage." % [poison_buffed, half_bonus]
+					poison_allies.append(ally)
+			var msg := "[color=%s]%s coats %s — +%d bonus damage!" % [team_tag, u_name, ab_name, self_bonus]
+			if poison_allies.size() > 0:
+				msg += " %d nearby allies gain +%d damage." % [poison_allies.size(), half_bonus]
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("ability")
+			# Revert after 3 seconds
+			var poison_revert := unit.create_tween()
+			poison_revert.tween_callback(func():
+				if is_instance_valid(unit) and not unit.is_dead:
+					unit.damage -= self_bonus
+				for a in poison_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.damage -= half_bonus
+			).set_delay(3.0)
 		"assassin_vanish":
 			unit.evasion += 80.0
 			unit.crit_chance += 100.0
-			var vanish_buffed := 0
+			var vanish_allies: Array[Unit] = []
 			for ally in board.get_units_on_team(unit.team):
 				if ally.is_dead or ally == unit:
 					continue
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.evasion += 20.0
-					vanish_buffed += 1
+					vanish_allies.append(ally)
 			var msg := "[color=%s]%s uses %s — +80%% evasion & guaranteed crit!" % [team_tag, u_name, ab_name]
-			if vanish_buffed > 0:
-				msg += " %d nearby allies gain +20%% evasion." % vanish_buffed
+			if vanish_allies.size() > 0:
+				msg += " %d nearby allies gain +20%% evasion." % vanish_allies.size()
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("ability")
+			# Revert after 3 seconds
+			var vanish_revert := unit.create_tween()
+			vanish_revert.tween_callback(func():
+				if is_instance_valid(unit) and not unit.is_dead:
+					unit.evasion -= 80.0
+					unit.crit_chance -= 100.0
+				for a in vanish_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.evasion -= 20.0
+			).set_delay(3.0)
 
 		# ── Paladin ── (cleanses corrosive)
 		"paladin_aegis":
 			var allies := board.get_units_on_team(unit.team)
-			var buffed := 0
+			var aegis_allies: Array[Unit] = []
 			var cleansed := 0
 			for ally in allies:
 				if ally.is_dead:
@@ -701,18 +809,25 @@ func _trigger_ability(unit: Unit) -> void:
 				ally.armor_effectiveness += 0.15
 				ally._update_armor_bar()
 				ally.damage += 2
-				buffed += 1
+				aegis_allies.append(ally)
 				if ally.corrosive_dot > 0:
 					ally.corrosive_dot = 0
 					ally.restore_armor()
 					ally._update_armor_bar()
 					cleansed += 1
-			var msg := "[color=%s]%s casts %s — +5 armor, +15%% armor power & +2 dmg to %d allies!" % [team_tag, u_name, ab_name, buffed]
+			var msg := "[color=%s]%s casts %s — +5 armor, +15%% armor power & +2 dmg to %d allies!" % [team_tag, u_name, ab_name, aegis_allies.size()]
 			if cleansed > 0:
 				msg += " Cleanses corrosive from %d!" % cleansed
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("heal")
+			# Revert effectiveness and damage after 3 seconds (armor/cleanse stays)
+			var aegis_revert := unit.create_tween()
+			aegis_revert.tween_callback(func():
+				for a in aegis_allies:
+					if is_instance_valid(a) and not a.is_dead:
+						a.armor_effectiveness -= 0.15
+						a.damage -= 2
+			).set_delay(3.0)
 		"paladin_smite":
 			var smite_target := board.find_nearest_enemy(unit)
 			if smite_target and not smite_target.is_dead:
@@ -724,8 +839,8 @@ func _trigger_ability(unit: Unit) -> void:
 				var t_name := smite_target.display_name if smite_target.display_name != "" else smite_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s for %d, heals %d![/color]" % [team_tag, u_name, ab_name, t_name, result.damage, heal_amount])
 				if smite_target.is_dead:
+					_award_kill_bounty(smite_target)
 					board.remove_unit(smite_target)
-			AudioManager.play("ability")
 		"paladin_consecrate":
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
@@ -742,6 +857,7 @@ func _trigger_ability(unit: Unit) -> void:
 					enemy.take_damage(cons_dmg)
 					hit_count += 1
 					if enemy.is_dead:
+						_award_kill_bounty(enemy)
 						board.remove_unit(enemy)
 			for ally in allies:
 				if ally.is_dead:
@@ -759,14 +875,14 @@ func _trigger_ability(unit: Unit) -> void:
 				msg += " Cleanses corrosive from %d!" % cleansed
 			msg += "[/color]"
 			combat_event.emit(msg)
-			AudioManager.play("heal")
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Paladin", Color.WHITE))
 
 		# ── Archer ──
 		"archer_volley":
 			var enemies := board.get_units_on_team(
 				Unit.Team.ENEMY if unit.team == Unit.Team.PLAYER else Unit.Team.PLAYER
 			)
-			var volley_dmg := int(unit.damage * 0.4)
+			var volley_dmg := int(unit.damage * 0.6)
 			var volley_hit := 0
 			for enemy in enemies:
 				if enemy.is_dead:
@@ -776,9 +892,10 @@ func _trigger_ability(unit: Unit) -> void:
 				enemy.take_damage(volley_dmg)
 				volley_hit += 1
 				if enemy.is_dead:
+					_award_kill_bounty(enemy)
 					board.remove_unit(enemy)
 			combat_event.emit("[color=%s]%s fires %s — hits %d enemies for %d![/color]" % [team_tag, u_name, ab_name, volley_hit, volley_dmg])
-			AudioManager.play("ability")
+			_spawn_aoe_ring(unit.position, unit.ability_range, ABILITY_COLORS.get("Archer", Color.WHITE))
 		"archer_pierce":
 			var pierce_target := board.find_nearest_enemy(unit)
 			if pierce_target and not pierce_target.is_dead:
@@ -791,25 +908,160 @@ func _trigger_ability(unit: Unit) -> void:
 				combat_event.emit("[color=%s]%s fires %s at %s for %d (ignores armor)![/color]" % [team_tag, u_name, ab_name, t_name, pierce_dmg])
 				if pierce_target.current_hp <= 0:
 					pierce_target.die()
+					_award_kill_bounty(pierce_target)
 					board.remove_unit(pierce_target)
-			AudioManager.play("ability")
 		"archer_mark":
 			var mark_target := board.find_nearest_enemy(unit)
 			if mark_target and not mark_target.is_dead:
 				mark_target.crit_vulnerability += 30.0
 				var t_name := mark_target.display_name if mark_target.display_name != "" else mark_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s uses %s on %s — takes +30%% more damage![/color]" % [team_tag, u_name, ab_name, t_name])
-			AudioManager.play("ability")
+				# Revert after 5 seconds
+				var mark_revert := unit.create_tween()
+				var marked := mark_target
+				mark_revert.tween_callback(func():
+					if is_instance_valid(marked) and not marked.is_dead:
+						marked.crit_vulnerability -= 30.0
+				).set_delay(5.0)
 
 		# ── Summoner (abilities fire via mana, summoning via attack) ──
 		"summoner_archer", "summoner_guardian", "summoner_familiar":
 			# Summoner abilities are handled in the attack phase; mana trigger does nothing extra
-			pass
+			return
 
-	# Visual pulse for ability cast
+	# Play class-colored VFX + class-specific SFX
+	_play_ability_effects(unit)
+
+func _play_ability_effects(unit: Unit) -> void:
+	var unit_class: String = unit.unit_data.unit_class
+	var ab_name: String = unit.instance_ability_name if unit.instance_ability_name != "" else unit.unit_data.ability_name
+	var color: Color = ABILITY_COLORS.get(unit_class, Color(1.0, 1.0, 1.0))
+
+	# Class-colored flash (replaces generic white flash)
+	var bright := Color(
+		minf(color.r + 0.5, 1.5),
+		minf(color.g + 0.5, 1.5),
+		minf(color.b + 0.5, 1.5),
+		1.0
+	)
 	var tween := unit.create_tween()
-	tween.tween_property(unit, "modulate", Color(1.5, 1.5, 1.5, 1.0), 0.15)
-	tween.tween_property(unit, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.15)
+	tween.tween_property(unit, "modulate", bright, 0.12)
+	tween.tween_property(unit, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.18)
+
+	# Expanding ring VFX
+	_spawn_ability_ring(unit.position, color)
+
+	# Floating ability name label
+	_spawn_ability_label(unit.position, ab_name, color)
+
+	# Class-specific sound
+	var sound_key: String = ABILITY_SOUND_MAP.get(unit_class, "ability")
+	AudioManager.play(sound_key)
+
+func _spawn_ability_ring(pos: Vector2, color: Color) -> void:
+	var ring := Node2D.new()
+	ring.position = pos
+	ring.z_index = 1
+	ring.set_meta("ring_radius", 15.0)
+	ring.set_meta("ring_alpha", 0.8)
+	ring.set_meta("ring_color", color)
+	ring.draw.connect(func():
+		var r: float = ring.get_meta("ring_radius")
+		var a: float = ring.get_meta("ring_alpha")
+		var c: Color = ring.get_meta("ring_color")
+		c.a = a
+		ring.draw_arc(Vector2.ZERO, r, 0, TAU, 32, c, 2.5)
+	)
+	board.add_child(ring)
+	var ring_tween := board.create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_method(func(r: float):
+		if is_instance_valid(ring):
+			ring.set_meta("ring_radius", r)
+			ring.queue_redraw()
+	, 15.0, 45.0, 0.35)
+	ring_tween.tween_method(func(a: float):
+		if is_instance_valid(ring):
+			ring.set_meta("ring_alpha", a)
+			ring.queue_redraw()
+	, 0.8, 0.0, 0.35)
+	ring_tween.set_parallel(false)
+	ring_tween.tween_callback(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
+
+func _spawn_aoe_ring(pos: Vector2, radius: float, color: Color) -> void:
+	var ring := Node2D.new()
+	ring.position = pos
+	ring.z_index = 1
+	ring.set_meta("ring_radius", 0.0)
+	ring.set_meta("ring_alpha", 0.4)
+	ring.set_meta("ring_color", color)
+	ring.draw.connect(func():
+		var r: float = ring.get_meta("ring_radius")
+		var a: float = ring.get_meta("ring_alpha")
+		var c: Color = ring.get_meta("ring_color")
+		c.a = a * 0.3
+		ring.draw_circle(Vector2.ZERO, r, c)
+		c.a = a
+		ring.draw_arc(Vector2.ZERO, r, 0, TAU, 48, c, 2.0)
+	)
+	board.add_child(ring)
+	var ring_tween := board.create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_method(func(r: float):
+		if is_instance_valid(ring):
+			ring.set_meta("ring_radius", r)
+			ring.queue_redraw()
+	, 0.0, radius, 0.25)
+	ring_tween.tween_method(func(a: float):
+		if is_instance_valid(ring):
+			ring.set_meta("ring_alpha", a)
+			ring.queue_redraw()
+	, 0.4, 0.0, 0.4)
+	ring_tween.set_parallel(false)
+	ring_tween.tween_callback(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
+
+func _spawn_ability_label(pos: Vector2, text: String, color: Color) -> void:
+	var label := Node2D.new()
+	label.position = pos + Vector2(0, -20)
+	label.z_index = 2
+	label.set_meta("label_text", text)
+	label.set_meta("label_color", color)
+	label.set_meta("label_alpha", 1.0)
+	label.draw.connect(func():
+		var t: String = label.get_meta("label_text")
+		var c: Color = label.get_meta("label_color")
+		var a: float = label.get_meta("label_alpha")
+		var font := ThemeDB.fallback_font
+		var font_size := 11
+		var text_size := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		var offset := Vector2(-text_size.x * 0.5, 0)
+		# Dark shadow for readability
+		var shadow_col := Color(0, 0, 0, a * 0.8)
+		label.draw_string(font, offset + Vector2(1, 1), t, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, shadow_col)
+		# Colored text
+		c.a = a
+		label.draw_string(font, offset, t, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, c)
+	)
+	board.add_child(label)
+	var label_tween := board.create_tween()
+	label_tween.set_parallel(true)
+	label_tween.tween_property(label, "position:y", pos.y - 45, 0.6)
+	label_tween.tween_method(func(a: float):
+		if is_instance_valid(label):
+			label.set_meta("label_alpha", a)
+			label.queue_redraw()
+	, 1.0, 0.0, 0.6)
+	label_tween.set_parallel(false)
+	label_tween.tween_callback(func():
+		if is_instance_valid(label):
+			label.queue_free()
+	)
 
 func _spawn_attack_effect(attacker: Unit, target: Unit) -> void:
 	var unit_class: String = attacker.unit_data.unit_class

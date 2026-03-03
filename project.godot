@@ -17,9 +17,11 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+ProfileManager="*res://scripts/autoload/profile_manager.gd"
 GameManager="*res://scripts/autoload/game_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 SettingsManager="*res://scripts/autoload/settings_manager.gd"
+BackendManager="*res://scripts/autoload/backend_manager.gd"
 
 [display]
 

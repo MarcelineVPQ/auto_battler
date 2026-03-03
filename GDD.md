@@ -9,7 +9,7 @@
 
 ### Elevator Pitch
 
-> _[Describe your game in 1-2 sentences.]_
+> Recruit a squad of fantasy heroes, upgrade their stats and abilities, and position them on an open arena to auto-battle increasingly difficult enemy waves across 20 rounds. Supports local profiles and optional ranked PvP against real player squads.
 
 ---
 
@@ -87,51 +87,51 @@ Other stats (not shown in upgrade panel):
 - Upgrade cards are purchased from the shop and applied to a hero
 - Stacking identical upgrades creates compounding effects
 
-### Hero Classes
+### Hero Classes (9 total)
 
-| Class | Farm Cost | Ability | Skill | Boosted Stats |
-|-------|:---------:|---------|-------|---------------|
-| Warlock | 1 | Vulnerable Curse | Reflect | Ability Speed |
-| Priest | 1 | Holy Armor | Double Strike | Mana |
-| Tank | 2 | Shield Bash | — | Attack Range, Attack Speed |
-| Herbalist | 3 | Magic Potions | — | Damage, Damage |
-| _TBD_ | | | | |
-| _TBD_ | | | | |
+| Class | Cost | Role | Ability Variants |
+|-------|:----:|------|-----------------|
+| Warlock | 1g | Ranged caster | Soulfire, Soul Drain, Shadow Bolt |
+| Priest | 1g | Support | Holy Armor, Divine Shield, Purify |
+| Grunt | 1g | Fast melee brawler | Frenzy, War Cry, Cleave |
+| Tank | 2g | Frontline | Shield Bash, Taunt, Fortify |
+| Archer | 2g | Long-range DPS | Volley, Piercing Shot, Marked Target |
+| Herbalist | 3g | Ranged support | Magic Potions, Rejuvenation, Noxious Burst |
+| Assassin | 3g | Glass cannon | Shadowstrike, Poison Blade, Vanish |
+| Summoner | 4g | Spawns minions | Raise Skeleton, Raise Guardian, Raise Revenant |
+| Paladin | 4g | Holy frontline | Holy Aegis, Smite, Consecrate |
 
-Each class has:
-- **Ability** — active skill tied to mana and ability cooldown
-- **Skill** — passive or triggered effect (not all classes have one)
-- **Boosted stats** — one or two stats the class naturally excels at (can be the same stat twice for double scaling)
+Each unit spawns with a **random thematic name** (18 per class) and one of **3 ability variants**, making every unit unique. Abilities are mana-gated: mana charges via regen + per-attack gain, fires when full, then resets.
 
 ---
 
 ## Upgrade Cards
 
-Purchasable cards applied to heroes to modify their behavior.
+Purchasable cards applied to heroes via targeting mode.
 
-| Upgrade | Cost | Rarity | Effect |
-|---------|------|--------|--------|
-| Corrosive | 2 | Normal | Reduces armor per hit; can make armor go negative |
-| Exploit Weakness | 2 | Normal | Deal bonus damage to enemies with 0 or negative armor |
-| Revenge | 2 | Normal | On death: deal damage to killer |
-| Deadly Focus | 5 | Normal | One-time boost to crit when under 50% HP |
-| Sepsis | 8 | Normal | On crit: multiply existing poison stacks on target |
-| Nearly Fatal | 15 | Rare | Upon crit, trigger kill events |
-| Extra Hero Slot | _TBD_ | Rare | Adds +1 hero card to the shop (3 heroes + 3 upgrades) |
-| _TBD_ | | | |
+### Generic Upgrades
 
-- Duplicate upgrade cards can appear in the same shop roll
-- Stacking identical upgrades on a hero compounds their effect
-- **Extra Hero Slot** (late-game rare): after a certain number of rounds, this card can appear — buying it permanently changes the shop to show 3 hero cards + 3 upgrade cards instead of 2+4
+| Tier | Cost | Examples |
+|------|------|---------|
+| Cheap | 2-3g | Corrosive, Exploit Weakness, Toughness, Swift Strikes, Iron Skin, Keen Edge, Nimble, Quickstep, Longshot, Poison Tip |
+| Mid | 4-6g | Deadly Focus, Bloodlust, Giant Killer, Arcane Surge, Primed, Living Shield |
+| Expensive | 8-10g | Sepsis, Thorns, Vampirism, Berserk, Last Stand, Relentless |
+| Rare (round 6+) | 15g | Invincible, Haymaker |
+
+### Hero-Specific Upgrades
+
+| Rarity | Cost | Availability | Examples |
+|--------|------|-------------|---------|
+| Rare | 12g | Round 5+ | Blood Rage (Grunt), Deadeye (Archer), Phantom Step (Assassin), Fortress (Tank), Soul Rend (Warlock), Hellfire (Warlock), Divine Covenant (Priest), Toxic Mastery (Herbalist), Holy Vanguard (Paladin) |
+| Epic | 18g | Round 10+ | Rampage (Grunt), Hawkeye (Archer), Death's Embrace (Assassin), Bastion (Tank), Dark Pact (Warlock), Ascension (Priest), Plague Lord (Herbalist) |
 
 ### Rarity Tiers
 
-| Rarity | Cost Range | Availability |
-|--------|-----------|-------------|
-| Normal | 2-8g | Common in shop |
-| Rare | 15g | Less frequent, powerful effects |
-| _TBD_ | | |
-| _TBD_ | | |
+| Rarity | Color | Availability |
+|--------|-------|-------------|
+| Normal | Grey | Always |
+| Rare | Purple | Round 5+ |
+| Epic | Orange | Round 10+ |
 
 ---
 
@@ -139,33 +139,38 @@ Purchasable cards applied to heroes to modify their behavior.
 
 | Mechanic | Value |
 |----------|-------|
-| Starting gold | 8 |
-| Base income | +12g per round (rounds 1-7) |
-| Scaling income | +1g additional per round after round 7 (13g at R8, 14g at R9, etc.) |
+| Starting gold | 25g |
+| Base income | +12g per round (rounds 1-5) |
+| Scaling income | +1g additional per round after round 5 (13g at R6, 14g at R7, etc.) |
 | Round victory bonus | +2g |
 | Interest | 10% on gold stores, up to 5g per round |
+| Hero income | +(level - 1)g per hero per round |
+| Kill bounties | Gold earned per enemy killed (= their farm cost) |
 | Hero sell refund | Full farm cost (e.g., 1-cost → 1g, 2-cost → 2g) |
-| Shop refresh | _TBD_ |
+| Shop refresh | 2g |
 | Stat upgrade cost | 2g per point |
-| Squad cap | Starts at ~3, max 6 |
+| Squad cap | Based on farm count (starts at 5) |
 
 ### Income Example
 
-> Round 5, player has 40g saved, won last round:
+> Round 5, player has 40g saved, won last round, 2 heroes at level 2:
 > - Base income: +12g
 > - Victory bonus: +2g
 > - Interest (10% of 40, capped at 5): +4g
-> - **Total: +18g**
+> - Hero income: +2g (2 heroes × 1g each)
+> - **Total: +20g** (plus any kill bounties earned during combat)
 
 ---
 
 ## Lives & Progression
 
-- **Lives:** Start with a small number (e.g., 4)
-- **Lose a life** when you lose a round
+- **Lives:** Start with 5
+- **Lose a life** when you lose a round (draws do not cost a life)
+- **Life regen:** +1 life every 5 rounds
 - **Game over** at 0 lives
 - **Total rounds:** 20
-- **Unit cap:** limited squad size (e.g., 3/6), increases over time
+- **Gold snapshot:** gold is snapshotted at round start and restored on defeat
+- **Autosave:** game state saved after every round; ESC opens save-and-quit overlay
 
 ### Round Structure
 
@@ -182,13 +187,13 @@ Purchasable cards applied to heroes to modify their behavior.
 
 | Input | Action |
 |-------|--------|
-| Left click | Select unit (shows detail panel + attack range circle) |
+| Left click | Select unit / apply upgrade or merge target |
 | Left click + drag | Position unit on arena |
+| Right click | Cancel upgrade/merge targeting |
+| Escape | Cancel targeting / save & quit |
 | Click shop card | Buy hero or upgrade |
-| Number keys (1-6) | Quick-select shop slots |
-| X | _TBD_ (sell / discard) |
-| F | _TBD_ (freeze shop) |
-| Space | Ready (start battle) |
+| X | Sell selected unit |
+| F | Freeze / unfreeze shop |
 
 ---
 
@@ -265,28 +270,83 @@ Appears on the right side when clicking a hero:
 
 ## Audio
 
-> _[Describe music and SFX direction.]_
+- **Battle music** — looping track during combat phase, stops on combat end
+- **Class-specific ability sounds** — 6 categories (melee, stealth, ranged, holy, dark, nature) mapped per class
+- **Combat SFX** — hit, crit, evade, death, heal, summon, curse sounds
+- **UI SFX** — buy, sell, reroll, upgrade, warning, coin, round start, victory, defeat, game over
+- Audio pool: 8 concurrent `AudioStreamPlayer` nodes on the SFX bus
+- Dedicated music player separate from SFX pool
+- Audio generation: `scripts/tools/generate_audio.py` using ElevenLabs API
 
 ---
 
 ## Milestones
 
 - [x] **Phase 1:** Minimal prototype — arena, units, auto-combat, win/lose
-- [ ] **Phase 2:** Economy, shop (hero cards + upgrade cards), drag-to-place, prep/battle loop
-- [ ] **Phase 3:** 20 rounds, lives system, hero leveling/stacking, upgrade slots
-- [ ] **Phase 4:** Hero abilities/mana, unit detail panel, DPS meter, speed control
-- [ ] **Phase 5:** Art, animations, SFX, polish
+- [x] **Phase 2:** Economy, shop (hero cards + upgrade cards), drag-to-place, prep/battle loop
+- [x] **Phase 3:** 20 rounds, lives system, hero leveling/stacking, upgrade slots
+- [x] **Phase 4:** Hero abilities/mana, unit detail panel, DPS meter
+- [x] **Phase 5:** Art, animations, SFX, audio
+- [x] **Phase 6:** Ranked PvP, Nakama backend, leaderboard
+- [x] **Phase 7:** Save system, autosave, continue from save
+- [x] **Phase 8:** Local profiles, stats tracking
+- [ ] **Phase 9:** Hero creator / profile picture integration
+- [ ] **Phase 10:** Polish, meta-progression, unlockables
+
+---
+
+## Async PVP / Backend
+
+### Architecture
+
+- **Backend:** [Nakama](https://heroiclabs.com/nakama/) open-source game server (self-hosted via Docker)
+- **Client communication:** Raw HTTP REST API (`HTTPRequest` nodes) — no SDK addon
+- **Auth:** Device-based anonymous authentication (stable UUID per install)
+
+### Infrastructure
+
+| Service | Image | Port |
+|---------|-------|------|
+| Nakama | `heroiclabs/nakama:3.21.1` | 7350 (API), 7351 (Console) |
+| PostgreSQL | `postgres:15-alpine` | 5432 (internal) |
+
+Start with: `cd nakama && docker compose up -d`
+
+### Server RPCs
+
+| RPC | Purpose |
+|-----|---------|
+| `find_opponents` | Query ELO leaderboard for players within ±200 rating, return their squad snapshots |
+| `record_result` | Atomically update ELO leaderboard + win/loss stats after a match |
+
+### Client Flow
+
+1. **Startup** — `BackendManager` authenticates via device ID, gets session token
+2. **Prep phase** — Squad snapshot uploaded to Nakama storage
+3. **Wave select** — `find_opponents` RPC fetches real player squads as wave options
+4. **Battle end** — `record_result` RPC updates ELO and win/loss in one call
+5. **Offline** — Requests queued locally, flushed when connectivity returns
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `scripts/autoload/profile_manager.gd` | Local profile management (autoload) |
+| `scripts/autoload/backend_manager.gd` | Client networking (autoload) |
+| `scripts/pvp/elo_calculator.gd` | ELO math (backend-agnostic) |
+| `scripts/pvp/opponent_cache.gd` | Offline opponent fallback cache |
+| `scripts/pvp/squad_serializer.gd` | Squad ↔ JSON conversion |
+| `nakama/data/modules/main.ts` | Server-side RPCs |
+| `nakama/docker-compose.yml` | Docker infrastructure |
 
 ---
 
 ## Open Questions
 
-- _How many hero classes total?_
-- _How many upgrade cards in the full pool?_
-- _What rarity tiers beyond Normal?_
-- _Status effect system (poison, curse, etc.) — how do stacks work?_
-- _Online PvP or PvE only?_
 - _Unlockables / meta-progression between runs?_
+- _Hero creator / custom profile pictures?_
+- _Additional hero classes?_
+- _Boss rounds?_
 
 ---
 

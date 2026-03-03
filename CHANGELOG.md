@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.9.0 — Local Profiles
+
+### Profile System
+- Multiple local profiles on the same machine, each with independent saves, settings, and stats
+- Profile selector dropdown with "+" button on the main menu to switch or create profiles
+- Profile creation overlay with name field and optional hero class selector
+- Each profile stores: settings, save game, auth credentials, opponent cache, and win/loss/highest round stats
+- Automatic migration of legacy root-level files into a "Default" profile on first launch
+
+### Profile-Aware Storage
+- All autoloads (GameManager, SettingsManager, BackendManager) now resolve file paths through ProfileManager
+- Switching profiles reloads settings, reconnects auth, and refreshes save state
+- Profile data stored under `user://profiles/<id>/`
+
+---
+
+## v0.8.0 — Save System, Ranked PvP, Combat Overhaul
+
+### Save System
+- **Autosave** after every round (skipped on game complete or game over)
+- **ESC to quit** with save — opens a quit overlay with "Save & Quit" and "Cancel" options
+- **Continue buttons** on main menu for both Single Player and Ranked PvP modes
+- Save stores full game state: round, gold, lives, farms, squad with all stats/upgrades/XP
+
+### Ranked PvP
+- **Ranked PvP** mode: fight real player squads fetched from the Nakama backend
+- ELO rating system with win/loss tracking and leaderboard
+- Opponent snapshots cached locally for offline fallback
+- Online status indicator on main menu showing ELO rating
+- **Leaderboard overlay** on main menu showing top 20 players
+
+### Nakama Backend Integration
+- Device-based anonymous authentication with session persistence and refresh
+- Squad snapshot upload/download for PvP matchmaking
+- RPC-based rating updates with offline queue and automatic flush on reconnect
+- Connectivity monitoring with periodic health checks
+
+### Result Overlay
+- Dedicated result overlay replacing the inline result label
+- Gold counting animation with coin sound on victory
+- Shows income breakdown (base, victory bonus, interest, hero income)
+- Distinct screens for victory, defeat, draw, game complete, and game over
+- "Return to Menu" button on game complete / game over, "Continue" on mid-game results
+
+### Combat Improvements
+- **Combat timer** — 60-second countdown displayed above the battlefield, color-coded (white > yellow > red)
+- **Combat draw** — stalemates now result in a draw (no life lost) instead of a player loss
+- **Kill bounty** — earn gold for each enemy killed based on their farm cost
+- **Hero income** — leveled heroes generate passive income (level - 1 gold per hero per round)
+- **Death animation** — red flash + shrink on unit death instead of simple fade
+- **Blood splat fade** — splats now fade out over 8 seconds instead of persisting
+- **Evasion cap** — evasion capped at 75% so attacks always have a chance to land
+- **Armor bar fix** — armor bar max_value now tracks max_armor correctly
+
+### Audio
+- **Battle music** — looping track plays during combat, stops on combat end
+- **Class-specific ability sounds** — 6 new ability sound effects mapped by class category (melee, stealth, ranged, holy, dark, nature)
+- **Coin sound** on gold counting animation
+- **Death sound** on every unit kill
+
+### Combat Balance
+- Warlock **Soulfire** replaces Vulnerable Curse — AoE damage to all enemies in range
+- Priest **Holy Armor** heal multiplier increased (4x to 5x)
+- Priest **Purify** heal multiplier increased (8x to 10x)
+- New Warlock rare buff: **Hellfire** — ability also blasts nearby enemies for 50% damage
+- Starting gold increased from 10 to 25
+- Income scaling starts at round 5 (was 7)
+- Removed first-loss 50g bonus
+
+### UI & Visuals
+- **Battle name panel** — player and opponent names shown above the DPS readout during combat
+- **Merge targeting** — when buying a hero you already own multiple copies of, enter targeting mode to choose which unit receives XP
+- **Range circle clipping** — attack and ability range circles are now clipped to arena bounds
+- **Expanded name pools** — 18 names per class (up from 6) for more variety
+
+### Other
+- `.gitignore` updated with Nakama server build exclusions
+
+---
+
 ## v0.7.1 — Summoner Skeleton Archer Rework
 
 ### Skeleton Archer Unit

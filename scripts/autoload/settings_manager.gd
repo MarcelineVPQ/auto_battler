@@ -1,6 +1,8 @@
 extends Node
 
-const SETTINGS_PATH: String = "user://settings.cfg"
+var settings_path: String:
+	get: return ProfileManager.get_profile_path("settings.cfg")
+
 const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1600, 900),
@@ -18,6 +20,12 @@ var show_damage_numbers: bool = true
 var resolution: Vector2i = Vector2i(1280, 720)
 
 func _ready() -> void:
+	ProfileManager.profile_changed.connect(_on_profile_changed)
+	load_settings()
+	_apply_audio()
+	_apply_graphics()
+
+func _on_profile_changed(_profile_id: String) -> void:
 	load_settings()
 	_apply_audio()
 	_apply_graphics()
@@ -89,11 +97,11 @@ func save_settings() -> void:
 	config.set_value("graphics", "resolution_y", resolution.y)
 	config.set_value("auxiliary", "screen_shake", screen_shake)
 	config.set_value("auxiliary", "show_damage_numbers", show_damage_numbers)
-	config.save(SETTINGS_PATH)
+	config.save(settings_path)
 
 func load_settings() -> void:
 	var config := ConfigFile.new()
-	if config.load(SETTINGS_PATH) != OK:
+	if config.load(settings_path) != OK:
 		return
 	master_volume = config.get_value("audio", "master_volume", 1.0)
 	sfx_volume = config.get_value("audio", "sfx_volume", 1.0)

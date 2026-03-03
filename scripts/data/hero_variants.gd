@@ -1,28 +1,68 @@
 class_name HeroVariants
 
 const NAME_POOLS: Dictionary = {
-	"Warlock": ["Garalt", "Mordith", "Vexara", "Thane", "Noctis", "Zareth"],
-	"Priest": ["Helena", "Amara", "Solene", "Briseia", "Theron", "Luciel"],
-	"Tank": ["Dorian", "Bulvar", "Ironhide", "Magnus", "Hector", "Brant"],
-	"Herbalist": ["Sage", "Willow", "Briar", "Fern", "Thistle", "Rowan"],
-	"Grunt": ["Korg", "Grok", "Thud", "Borak", "Ruk", "Varn"],
-	"Archer": ["Lyra", "Aelin", "Faelyn", "Sera", "Ithrin", "Veyra"],
-	"Assassin": ["Shade", "Whisper", "Nyx", "Veil", "Dusk", "Sable"],
-	"Summoner": ["Nyx", "Elara", "Omen", "Riven", "Azura", "Conjura"],
-	"Paladin": ["Cedric", "Aldric", "Gavriel", "Lucan", "Seraphel", "Orin"],
-	"SkeletonArcher": ["Rattles", "Marrow", "Clatters", "Dustbone", "Grimjaw", "Hollows"],
+	"Warlock": [
+		"Garalt", "Mordith", "Vexara", "Thane", "Noctis", "Zareth",
+		"Malachar", "Dravyn", "Sythera", "Volgrim", "Ashwick", "Nethys",
+		"Corvath", "Hexion", "Morvaine", "Calista", "Duskwell", "Fenrath",
+	],
+	"Priest": [
+		"Helena", "Amara", "Solene", "Briseia", "Theron", "Luciel",
+		"Auriel", "Caelum", "Devara", "Isandre", "Mirael", "Orynthia",
+		"Seraphis", "Vaelen", "Celeste", "Dianthe", "Evaris", "Gallena",
+	],
+	"Tank": [
+		"Dorian", "Bulvar", "Ironhide", "Magnus", "Hector", "Brant",
+		"Gorath", "Steelward", "Thormund", "Kaldren", "Bastion", "Gravus",
+		"Hammerfeld", "Olric", "Rampart", "Stonehelm", "Warmund", "Cragmore",
+	],
+	"Herbalist": [
+		"Sage", "Willow", "Briar", "Fern", "Thistle", "Rowan",
+		"Clover", "Hemlock", "Ivy", "Juniper", "Lavender", "Moss",
+		"Nettle", "Oleander", "Primrose", "Sorrel", "Tansy", "Yarrow",
+	],
+	"Grunt": [
+		"Korg", "Grok", "Thud", "Borak", "Ruk", "Varn",
+		"Brug", "Drak", "Gorba", "Harg", "Murg", "Skarr",
+		"Thok", "Urlg", "Warg", "Zug", "Brask", "Grond",
+	],
+	"Archer": [
+		"Lyra", "Aelin", "Faelyn", "Sera", "Ithrin", "Veyra",
+		"Ashara", "Bryndel", "Corwyn", "Daelis", "Elowen", "Fennara",
+		"Gwyndra", "Halcyon", "Iselda", "Kaelen", "Luthien", "Mirwen",
+	],
+	"Assassin": [
+		"Shade", "Whisper", "Nyx", "Veil", "Dusk", "Sable",
+		"Asp", "Blight", "Cipher", "Dirge", "Eclipse", "Fang",
+		"Gloom", "Haze", "Jinx", "Kris", "Lurk", "Mirage",
+	],
+	"Summoner": [
+		"Nyx", "Elara", "Omen", "Riven", "Azura", "Conjura",
+		"Beckoner", "Channix", "Divara", "Echara", "Fethra", "Grimoira",
+		"Harbinger", "Invocara", "Kethis", "Lumenax", "Mythara", "Nexara",
+	],
+	"Paladin": [
+		"Cedric", "Aldric", "Gavriel", "Lucan", "Seraphel", "Orin",
+		"Aurelion", "Belmorn", "Cyrus", "Dawnric", "Edric", "Galahad",
+		"Haelric", "Justain", "Kendric", "Lothar", "Mordain", "Novariel",
+	],
+	"SkeletonArcher": [
+		"Rattles", "Marrow", "Clatters", "Dustbone", "Grimjaw", "Hollows",
+		"Ashrib", "Boneclink", "Creakjoint", "Dreadknuckle", "Ember", "Fracture",
+		"Ghastly", "Huskbow", "Ivory", "Jawsnap", "Knackles", "Lichfinger",
+	],
 }
 
 const ABILITY_VARIANTS: Dictionary = {
 	"Warlock": [
-		{"key": "warlock_curse", "name": "Vulnerable Curse", "desc": "Enemies within 200px get +20 crit vulnerability"},
+		{"key": "warlock_soulfire", "name": "Soulfire", "desc": "Deal dmg x2.0 to all enemies in range"},
 		{"key": "warlock_drain", "name": "Soul Drain", "desc": "Steal HP from nearest enemy (dmg x2.0 as heal + damage)"},
 		{"key": "warlock_bolt", "name": "Shadow Bolt", "desc": "Heavy single-target nuke (dmg x4.0 to nearest)"},
 	],
 	"Priest": [
-		{"key": "priest_heal", "name": "Holy Armor", "desc": "Heal all allies for dmg x4.0"},
+		{"key": "priest_heal", "name": "Holy Armor", "desc": "Heal all allies for dmg x5.0"},
 		{"key": "priest_shield", "name": "Divine Shield", "desc": "Weakest ally gains +50% max HP as temporary armor"},
-		{"key": "priest_purify", "name": "Purify", "desc": "Lowest-HP ally: heal for dmg x8.0, remove crit vulnerability"},
+		{"key": "priest_purify", "name": "Purify", "desc": "Lowest-HP ally: heal for dmg x10.0, remove crit vulnerability"},
 	],
 	"Tank": [
 		{"key": "tank_bash", "name": "Shield Bash", "desc": "Deal armor + damage to nearest enemy"},
@@ -40,7 +80,7 @@ const ABILITY_VARIANTS: Dictionary = {
 		{"key": "grunt_cleave", "name": "Cleave", "desc": "Hit all enemies within 100px for dmg x1.5"},
 	],
 	"Archer": [
-		{"key": "archer_volley", "name": "Volley", "desc": "Hit all enemies for dmg x0.4"},
+		{"key": "archer_volley", "name": "Volley", "desc": "Hit all enemies for dmg x0.6"},
 		{"key": "archer_pierce", "name": "Piercing Shot", "desc": "Single target dmg x3.0, ignores armor"},
 		{"key": "archer_mark", "name": "Marked Target", "desc": "Nearest enemy takes +30% more damage from all sources"},
 	],

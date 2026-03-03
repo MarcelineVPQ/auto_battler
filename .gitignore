@@ -16,3 +16,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Nakama server build
+nakama/data/modules/node_modules/
+nakama/data/build/

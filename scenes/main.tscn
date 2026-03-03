@@ -85,9 +85,9 @@ vertical_alignment = 1
 [node name="InfoScroll" type="ScrollContainer" parent="UI"]
 visible = false
 offset_left = 1010.0
-offset_top = 170.0
+offset_top = 235.0
 offset_right = 1270.0
-offset_bottom = 510.0
+offset_bottom = 620.0
 horizontal_scroll_mode = 0
 
 [node name="InfoPanel" type="VBoxContainer" parent="UI/InfoScroll"]
