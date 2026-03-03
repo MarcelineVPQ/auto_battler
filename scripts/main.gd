@@ -449,7 +449,7 @@ func _on_tick_completed() -> void:
 	dps_enemy_label.text = "Enemy DPS: %.1f" % enemy_dps
 
 	# Update combat timer countdown
-	var remaining := maxf(CombatSystem.MAX_COMBAT_TIME - combat_system.combat_elapsed, 0.0)
+	var remaining := maxf(combat_system.MAX_COMBAT_TIME - combat_system.combat_elapsed, 0.0)
 	var mins := int(remaining) / 60
 	var secs := int(remaining) % 60
 	combat_timer_label.text = "%d:%02d" % [mins, secs]
@@ -2185,7 +2185,7 @@ func _restore_squad() -> void:
 			unit.ability_range = s.get("ability_range", unit.unit_data.ability_range)
 			unit.move_speed = s.move_speed
 			unit.max_armor = s.get("max_armor", s.armor)
-			unit.armor = int(unit.max_armor * 0.75) if unit.max_armor > 0 else 0
+			unit.armor = unit.max_armor
 			unit.evasion = s.evasion
 			unit.crit_chance = s.crit_chance
 			unit.skill_proc_chance = s.skill_proc_chance

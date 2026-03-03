@@ -145,7 +145,7 @@ func _build_settings_overlay() -> void:
 	settings_overlay.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(420, 440)
+	panel.custom_minimum_size = Vector2(420, 500)
 	center.add_child(panel)
 
 	var margin := MarginContainer.new()
@@ -207,6 +207,36 @@ func _build_settings_overlay() -> void:
 	vbox.add_child(_create_checkbox("Damage Numbers", SettingsManager.show_damage_numbers, func(toggled: bool):
 		SettingsManager.set_show_damage_numbers(toggled)
 	))
+
+	# Combat timer slider (30s–300s)
+	var timer_hbox := HBoxContainer.new()
+	timer_hbox.add_theme_constant_override("separation", 10)
+
+	var timer_label := Label.new()
+	timer_label.text = "Combat Timer"
+	timer_label.custom_minimum_size = Vector2(140, 0)
+	timer_hbox.add_child(timer_label)
+
+	var timer_slider := HSlider.new()
+	timer_slider.min_value = 30.0
+	timer_slider.max_value = 300.0
+	timer_slider.step = 10.0
+	timer_slider.value = SettingsManager.combat_timer
+	timer_slider.custom_minimum_size = Vector2(180, 20)
+	timer_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	timer_hbox.add_child(timer_slider)
+
+	var timer_value_label := Label.new()
+	timer_value_label.text = "%ds" % int(SettingsManager.combat_timer)
+	timer_value_label.custom_minimum_size = Vector2(35, 0)
+	timer_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	timer_hbox.add_child(timer_value_label)
+
+	timer_slider.value_changed.connect(func(val: float):
+		timer_value_label.text = "%ds" % int(val)
+		SettingsManager.set_combat_timer(val)
+	)
+	vbox.add_child(timer_hbox)
 
 	# ── Back Button ──
 	var back_btn := Button.new()

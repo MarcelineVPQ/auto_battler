@@ -8,7 +8,8 @@ signal combat_event(text: String)
 signal tick_completed()
 
 const TICK_INTERVAL: float = 0.5
-const MAX_COMBAT_TIME: float = 60.0  # stalemate after 60 seconds
+var MAX_COMBAT_TIME: float:
+	get: return SettingsManager.combat_timer
 
 # Class-colored ability effects
 const ABILITY_COLORS: Dictionary = {

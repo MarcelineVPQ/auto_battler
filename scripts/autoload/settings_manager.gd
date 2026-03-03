@@ -17,6 +17,7 @@ var fullscreen: bool = false
 var vsync: bool = true
 var screen_shake: bool = true
 var show_damage_numbers: bool = true
+var combat_timer: float = 120.0
 var resolution: Vector2i = Vector2i(1280, 720)
 
 func _ready() -> void:
@@ -58,6 +59,10 @@ func set_show_damage_numbers(enabled: bool) -> void:
 	show_damage_numbers = enabled
 	save_settings()
 
+func set_combat_timer(value: float) -> void:
+	combat_timer = clampf(value, 30.0, 300.0)
+	save_settings()
+
 func set_resolution(res: Vector2i) -> void:
 	resolution = res
 	_apply_graphics()
@@ -97,6 +102,7 @@ func save_settings() -> void:
 	config.set_value("graphics", "resolution_y", resolution.y)
 	config.set_value("auxiliary", "screen_shake", screen_shake)
 	config.set_value("auxiliary", "show_damage_numbers", show_damage_numbers)
+	config.set_value("auxiliary", "combat_timer", combat_timer)
 	config.save(settings_path)
 
 func load_settings() -> void:
@@ -111,3 +117,4 @@ func load_settings() -> void:
 	resolution.y = config.get_value("graphics", "resolution_y", 720)
 	screen_shake = config.get_value("auxiliary", "screen_shake", true)
 	show_damage_numbers = config.get_value("auxiliary", "show_damage_numbers", true)
+	combat_timer = config.get_value("auxiliary", "combat_timer", 120.0)
