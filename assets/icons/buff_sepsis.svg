@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Sepsis: Spreading acid splash -->
+  <circle cx="32" cy="30" r="10" fill="#9ACD32" opacity="0.6" stroke="#6B8E23" stroke-width="1.5"/>
+  <!-- Spread arrows/splashes -->
+  <circle cx="16" cy="42" r="6" fill="#9ACD32" opacity="0.4" stroke="#6B8E23" stroke-width="1"/>
+  <circle cx="48" cy="42" r="6" fill="#9ACD32" opacity="0.4" stroke="#6B8E23" stroke-width="1"/>
+  <circle cx="32" cy="52" r="5" fill="#9ACD32" opacity="0.3" stroke="#6B8E23" stroke-width="1"/>
+  <!-- Connecting drips -->
+  <line x1="26" y1="38" x2="20" y2="42" stroke="#9ACD32" stroke-width="1.5" opacity="0.5"/>
+  <line x1="38" y1="38" x2="44" y2="42" stroke="#9ACD32" stroke-width="1.5" opacity="0.5"/>
+  <line x1="32" y1="40" x2="32" y2="48" stroke="#9ACD32" stroke-width="1.5" opacity="0.5"/>
+</svg>

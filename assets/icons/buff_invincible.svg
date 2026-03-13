@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Invincible: Golden shield with star -->
+  <path d="M 32 6 L 54 16 L 54 36 Q 54 54 32 60 Q 10 54 10 36 L 10 16 Z"
+        fill="#FFC107" stroke="#FF8F00" stroke-width="2"/>
+  <path d="M 32 12 L 48 20 L 48 34 Q 48 48 32 54 Q 16 48 16 34 L 16 20 Z"
+        fill="none" stroke="#FFE082" stroke-width="1.5" opacity="0.6"/>
+  <!-- Star -->
+  <polygon points="32,18 34,26 42,26 36,32 38,40 32,35 26,40 28,32 22,26 30,26"
+           fill="#FFFFFF" opacity="0.8"/>
+  <!-- Glow -->
+  <circle cx="32" cy="30" r="14" fill="#FFFFFF" opacity="0.1"/>
+</svg>

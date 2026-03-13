@@ -1,6 +1,6 @@
 extends Node
 
-enum Phase { WAVE_SELECT, PREP, BATTLE, RESULT }
+enum Phase { MAP, WAVE_SELECT, PREP, BATTLE, RESULT }
 
 signal phase_changed(new_phase: Phase)
 signal round_ended(player_won: bool)
@@ -30,6 +30,13 @@ var farm_purchases: int = 0
 var last_round_won: bool = false
 var gold_snapshot: int = 0
 
+# Map mode state
+var run_map: Dictionary = {}
+var current_act: int = 1
+var map_node_id: int = -1
+var is_map_mode: bool = false
+var encountered_ids: Array = []
+
 func change_phase(new_phase: Phase) -> void:
 	current_phase = new_phase
 	phase_changed.emit(new_phase)
@@ -45,7 +52,8 @@ func end_battle(player_won: bool) -> void:
 		lives_changed.emit(lives)
 		if lives <= 0:
 			game_over.emit()
-		else:
+		elif not is_map_mode:
+			# Only restore gold snapshot in ranked/non-map mode
 			gold = gold_snapshot
 			gold_changed.emit(gold)
 	round_ended.emit(player_won)
@@ -74,6 +82,19 @@ func advance_round() -> void:
 		lives += 1
 		lives_changed.emit(lives)
 	change_phase(Phase.WAVE_SELECT)
+
+func advance_to_map() -> void:
+	if current_round > 0:
+		var income := calculate_income()
+		gold += income
+		gold_changed.emit(gold)
+	current_round += 1
+	gold_snapshot = gold
+	# Life regen every 5 rounds
+	if current_round % 5 == 0:
+		lives += 1
+		lives_changed.emit(lives)
+	change_phase(Phase.MAP)
 
 func spend_gold(amount: int) -> bool:
 	if gold >= amount:
@@ -110,6 +131,11 @@ func reset() -> void:
 	farm_purchases = 0
 	last_round_won = false
 	gold_snapshot = 0
+	run_map = {}
+	current_act = 1
+	map_node_id = -1
+	is_map_mode = false
+	encountered_ids = []
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
 	farms_changed.emit()
@@ -131,6 +157,11 @@ func save_game(squad_json: Array, ranked: bool) -> void:
 		"gold_snapshot": gold_snapshot,
 		"last_round_won": last_round_won,
 		"player_squad": squad_json,
+		"run_map": run_map,
+		"current_act": current_act,
+		"map_node_id": map_node_id,
+		"is_map_mode": is_map_mode,
+		"encountered_ids": encountered_ids,
 	}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if not file:
@@ -174,6 +205,13 @@ func restore_from_save(data: Dictionary) -> void:
 	farm_purchases = data.get("farm_purchases", 0)
 	gold_snapshot = data.get("gold_snapshot", 0)
 	last_round_won = data.get("last_round_won", false)
+	run_map = data.get("run_map", {})
+	if not run_map.is_empty():
+		MapGenerator.sanitize_after_json(run_map)
+	current_act = int(data.get("current_act", 1))
+	map_node_id = int(data.get("map_node_id", -1))
+	is_map_mode = data.get("is_map_mode", false)
+	encountered_ids = data.get("encountered_ids", [])
 	gold_changed.emit(gold)
 	lives_changed.emit(lives)
 	farms_changed.emit()

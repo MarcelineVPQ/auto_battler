@@ -60,6 +60,9 @@ var haymaker_counter: int = 0
 # Legion Master: bonus stats for summoned units
 var legion_master: bool = false
 
+# Summoned: this unit was created during combat (not saved between rounds)
+var is_summoned: bool = false
+
 # Hellfire: Warlock AoE splash after abilities
 var hellfire: bool = false
 
@@ -103,10 +106,6 @@ var attack_timer: float = 0.0
 var ability_timer: float = 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
-@onready var health_bar: ProgressBar = $HealthBar
-@onready var armor_bar: ProgressBar = $ArmorBar
-@onready var mana_bar: ProgressBar = $ManaBar
-@onready var name_label: Label = $NameLabel
 
 func setup(data: UnitData, t: Team, pos: Vector2) -> void:
 	unit_data = data
@@ -141,24 +140,90 @@ func _ready() -> void:
 		_update_visuals()
 
 func _draw() -> void:
-	# Team-colored ring behind sprite
-	var ring_color: Color
-	if team == Team.PLAYER:
-		ring_color = Color(0.2, 0.5, 1.0, 0.6)
+	if not unit_data:
+		return
+
+	var sprite_radius := 64.0 * sprite.scale.x
+	var arc_segments := 48
+	# Arcs sweep clockwise from 12 o'clock: start at -PI/2
+	var start_angle := -PI / 2.0
+
+	# Ring radii (inside → outside): mana, health, armor, team border
+	var mana_r := sprite_radius + 2.0
+	var mana_thick := 2.5
+	var health_r := mana_r + mana_thick + 1.5
+	var health_thick := 4.0
+	var armor_r := health_r + health_thick + 1.5
+	var armor_thick := 3.0
+	var team_r := armor_r + armor_thick + 1.5
+	var team_thick := 2.0
+
+	# ── Mana ring (blue) ──
+	if max_mana > 0:
+		var mana_ratio := clampf(float(current_mana) / float(max_mana), 0.0, 1.0)
+		# Dim background
+		draw_arc(Vector2.ZERO, mana_r, 0, TAU, arc_segments, Color(0.1, 0.15, 0.4, 0.3), mana_thick)
+		# Foreground arc
+		if mana_ratio > 0.0:
+			draw_arc(Vector2.ZERO, mana_r, start_angle, start_angle + TAU * mana_ratio, arc_segments, Color(0.3, 0.5, 1.0, 0.9), mana_thick)
+
+	# ── Health ring (green→yellow→red) ──
+	var hp_ratio := clampf(float(current_hp) / float(max_hp), 0.0, 1.0)
+	# Dim background
+	draw_arc(Vector2.ZERO, health_r, 0, TAU, arc_segments, Color(0.2, 0.08, 0.08, 0.3), health_thick)
+	# Health color based on ratio
+	var hp_color: Color
+	if hp_ratio > 0.6:
+		hp_color = Color(0.2, 0.85, 0.2, 0.95)
+	elif hp_ratio > 0.3:
+		var t := (hp_ratio - 0.3) / 0.3
+		hp_color = Color(lerp(0.95, 0.2, t), lerp(0.8, 0.85, t), 0.2, 0.95)
 	else:
-		ring_color = Color(1.0, 0.2, 0.2, 0.6)
-	draw_arc(Vector2.ZERO, 18, 0, TAU, 32, ring_color, 2.0)
+		hp_color = Color(0.95, 0.2, 0.15, 0.95)
+	if hp_ratio > 0.0:
+		draw_arc(Vector2.ZERO, health_r, start_angle, start_angle + TAU * hp_ratio, arc_segments, hp_color, health_thick)
 
-	# Status icons — small colored dots below the name label
-	var icons: Array[Dictionary] = []  # {color, label}
+	# ── Armor ring (white/silver, only when armor > 0) ──
+	if max_armor > 0 and armor > 0:
+		var armor_ratio := clampf(float(armor) / float(max_armor), 0.0, 1.0)
+		# Dim background
+		draw_arc(Vector2.ZERO, armor_r, 0, TAU, arc_segments, Color(0.3, 0.3, 0.35, 0.25), armor_thick)
+		# Foreground
+		if armor_ratio > 0.0:
+			draw_arc(Vector2.ZERO, armor_r, start_angle, start_angle + TAU * armor_ratio, arc_segments, Color(0.85, 0.85, 0.9, 0.85), armor_thick)
 
-	# Debuffs (red-ish tones)
+	# ── Team border ring (outermost) ──
+	var team_color: Color
+	if team == Team.PLAYER:
+		team_color = Color(0.2, 0.5, 1.0, 0.6)
+	else:
+		team_color = Color(1.0, 0.2, 0.2, 0.6)
+	# Adjust team ring radius if armor ring is hidden
+	var actual_team_r := team_r
+	if max_armor <= 0 or armor <= 0:
+		actual_team_r = armor_r  # skip armor gap
+	draw_arc(Vector2.ZERO, actual_team_r, 0, TAU, arc_segments, team_color, team_thick)
+
+	# ── Name label (centered, white with black outline) ──
+	var unit_name: String = display_name if display_name != "" else unit_data.unit_name
+	var font := ThemeDB.fallback_font
+	var name_font_size := 11
+	var name_size := font.get_string_size(unit_name, HORIZONTAL_ALIGNMENT_CENTER, -1, name_font_size)
+	var name_pos := Vector2(-name_size.x * 0.5, actual_team_r + team_thick + 12.0)
+	# Black outline (draw offset in 4 directions)
+	var outline_col := Color(0, 0, 0, 0.9)
+	for ofs in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+		draw_string(font, name_pos + ofs, unit_name, HORIZONTAL_ALIGNMENT_LEFT, -1, name_font_size, outline_col)
+	# White text
+	draw_string(font, name_pos, unit_name, HORIZONTAL_ALIGNMENT_LEFT, -1, name_font_size, Color(1, 1, 1, 1))
+
+	# ── Status icons — small colored dots below the name ──
+	var icons: Array[Dictionary] = []
+
 	if poison_dot > 0:
 		icons.append({"color": Color(0.2, 0.85, 0.2), "label": str(poison_dot)})
 	if corrosive_dot > 0:
 		icons.append({"color": Color(0.9, 0.75, 0.1), "label": str(corrosive_dot)})
-
-	# Buffs (blue/purple tones)
 	if thorns_slow:
 		icons.append({"color": Color(0.7, 0.3, 0.9), "label": ""})
 	if lifesteal_pct > 0.0:
@@ -173,9 +238,7 @@ func _draw() -> void:
 	if invincible_max > 0:
 		icons.append({"color": Color(1.0, 1.0, 1.0), "label": str(invincible_charges)})
 	if haymaker_counter > 0:
-		var remaining := haymaker_counter
-		# Show how many attacks until haymaker fires (lower = closer)
-		icons.append({"color": Color(1.0, 0.6, 0.15), "label": str(remaining)})
+		icons.append({"color": Color(1.0, 0.6, 0.15), "label": str(haymaker_counter)})
 	if poison_power > 0:
 		icons.append({"color": Color(0.1, 0.7, 0.3), "label": str(poison_power)})
 	if corrosive_power > 0:
@@ -192,23 +255,19 @@ func _draw() -> void:
 	var icon_spacing := 14.0
 	var total_width := (icons.size() - 1) * icon_spacing
 	var start_x := -total_width * 0.5
-	var y_pos := 42.0
+	var y_pos := name_pos.y + 10.0
 
 	for i in range(icons.size()):
 		var icon: Dictionary = icons[i]
 		var cx := start_x + i * icon_spacing
 		var center := Vector2(cx, y_pos)
-		# Filled circle
 		draw_circle(center, icon_radius, icon.color)
-		# Dark outline
 		draw_arc(center, icon_radius, 0, TAU, 16, Color(0, 0, 0, 0.6), 1.0)
-		# Stack count text
 		if icon.label != "":
-			var font := ThemeDB.fallback_font
-			var font_size := 8
-			var text_size := font.get_string_size(icon.label, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+			var icon_fs := 8
+			var text_size := font.get_string_size(icon.label, HORIZONTAL_ALIGNMENT_CENTER, -1, icon_fs)
 			var text_pos := Vector2(cx - text_size.x * 0.5, y_pos + text_size.y * 0.25)
-			draw_string(font, text_pos, icon.label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0, 0, 0))
+			draw_string(font, text_pos, icon.label, HORIZONTAL_ALIGNMENT_LEFT, -1, icon_fs, Color(0, 0, 0))
 
 func _update_visuals() -> void:
 	# Apply class-specific texture
@@ -220,23 +279,11 @@ func _update_visuals() -> void:
 	else:
 		sprite.modulate = Color(1.0, 0.2, 0.2)
 
-	# Health bar
-	health_bar.max_value = max_hp
-	health_bar.value = current_hp
-
-	# Mana bar
-	_update_mana_bar()
-
-	# Armor bar — visible only when armor > 0
-	_update_armor_bar()
-
-	# Name label
-	name_label.text = display_name if display_name != "" else unit_data.unit_name
-
 	# Scale grows with power (merges + stat purchases)
 	update_scale()
+	queue_redraw()
 
-const PREMIUM_STATS: Array[String] = ["evasion", "crit_chance", "skill_proc_chance"]
+const PREMIUM_STATS: Array[String] = ["evasion", "crit_chance", "skill_proc_chance", "ability_cooldown"]
 
 func get_stat_upgrade_cost(stat_key: String) -> int:
 	var purchases: int = stat_purchases.get(stat_key, 0)
@@ -259,22 +306,17 @@ func update_scale() -> void:
 		total_purchases += stat_purchases[key]
 	var s: float = clampf(base_s + total_purchases * 0.002, 0.22, 0.45)
 	sprite.scale = Vector2(s, s)
+	queue_redraw()
 
 func _update_armor_bar() -> void:
-	if armor > 0:
-		armor_bar.visible = true
-		armor_bar.max_value = max_armor
-		armor_bar.value = armor
-	else:
-		armor_bar.visible = false
+	queue_redraw()
 
 func restore_armor() -> void:
 	# Armor is permanent now — restore any temporary corrosive shred
 	armor = max_armor
 
 func _update_mana_bar() -> void:
-	mana_bar.max_value = max_mana
-	mana_bar.value = current_mana
+	queue_redraw()
 
 func take_damage(amount: int, pen: float = 0.0) -> Dictionary:
 	var result := {"hit": true, "damage": 0, "crit": false, "evaded": false, "deflected": false}
@@ -302,11 +344,11 @@ func take_damage(amount: int, pen: float = 0.0) -> Dictionary:
 	# Armor damage reduction — percentage-based, armor never depletes
 	var reduced := amount
 	if effective_armor > 0:
-		reduced = int(ceil(float(amount) * 100.0 / (100.0 + effective_armor)))
+		reduced = int(ceil(float(amount) * 40.0 / (40.0 + effective_armor)))
 	result.damage = reduced
 	current_hp -= reduced
 	current_hp = maxi(current_hp, 0)
-	health_bar.value = current_hp
+	queue_redraw()
 
 	if current_hp <= 0:
 		die()

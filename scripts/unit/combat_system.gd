@@ -151,7 +151,7 @@ func _process_tick() -> void:
 				unit.current_hp + int(unit.hp_regen_per_second * TICK_INTERVAL),
 				unit.max_hp
 			)
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 
 		# Corrosive DoT — shreds armor rating and deals direct HP damage
 		if unit.corrosive_dot > 0:
@@ -162,7 +162,7 @@ func _process_tick() -> void:
 			# Deal direct HP damage (bypasses armor reduction)
 			unit.current_hp -= unit.corrosive_dot
 			unit.current_hp = maxi(unit.current_hp, 0)
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			if unit.current_hp <= 0:
 				unit.die()
 				_award_kill_bounty(unit)
@@ -174,7 +174,7 @@ func _process_tick() -> void:
 		if unit.poison_dot > 0:
 			unit.current_hp -= unit.poison_dot
 			unit.current_hp = maxi(unit.current_hp, 0)
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			if unit.current_hp <= 0:
 				unit.die()
 				_award_kill_bounty(unit)
@@ -350,7 +350,7 @@ func _attack(attacker: Unit, target: Unit) -> void:
 	if result.hit and attacker.lifesteal_pct > 0.0:
 		var heal := int(ceil(float(result.damage) * attacker.lifesteal_pct))
 		attacker.current_hp = mini(attacker.current_hp + heal, attacker.max_hp)
-		attacker.health_bar.value = attacker.current_hp
+		attacker.queue_redraw()
 
 	# Apply corrosive stacks on hit
 	if result.hit and attacker.corrosive_power > 0:
@@ -422,7 +422,7 @@ func _trigger_ability(unit: Unit) -> void:
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
-				ally.health_bar.value = ally.current_hp
+				ally.queue_redraw()
 				healed += 1
 				if ally.poison_dot > 0:
 					ally.poison_dot = 0
@@ -476,7 +476,7 @@ func _trigger_ability(unit: Unit) -> void:
 			if target_ally:
 				var heal_amount := int(unit.damage * 10.0)
 				target_ally.current_hp = mini(target_ally.current_hp + heal_amount, target_ally.max_hp)
-				target_ally.health_bar.value = target_ally.current_hp
+				target_ally.queue_redraw()
 				target_ally.crit_vulnerability = 0.0
 				var had_poison := target_ally.poison_dot > 0
 				target_ally.poison_dot = 0
@@ -511,7 +511,7 @@ func _trigger_ability(unit: Unit) -> void:
 				var drain_dmg := int(unit.damage * 2.0)
 				var result := drain_target.take_damage(drain_dmg)
 				unit.current_hp = mini(unit.current_hp + drain_dmg, unit.max_hp)
-				unit.health_bar.value = unit.current_hp
+				unit.queue_redraw()
 				var t_name := drain_target.display_name if drain_target.display_name != "" else drain_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s — drains %d HP![/color]" % [team_tag, u_name, ab_name, t_name, drain_dmg])
 				if drain_target.is_dead:
@@ -578,7 +578,7 @@ func _trigger_ability(unit: Unit) -> void:
 				if unit.position.distance_to(ally.position) > unit.ability_range:
 					continue
 				ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
-				ally.health_bar.value = ally.current_hp
+				ally.queue_redraw()
 				healed += 1
 			combat_event.emit("[color=%s]%s casts %s — heals %d allies for %d![/color]" % [team_tag, u_name, ab_name, healed, heal_amount])
 		"herbalist_burst":
@@ -836,7 +836,7 @@ func _trigger_ability(unit: Unit) -> void:
 				var result := smite_target.take_damage(smite_dmg)
 				var heal_amount := int(smite_dmg * 0.5)
 				unit.current_hp = mini(unit.current_hp + heal_amount, unit.max_hp)
-				unit.health_bar.value = unit.current_hp
+				unit.queue_redraw()
 				var t_name := smite_target.display_name if smite_target.display_name != "" else smite_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s casts %s on %s for %d, heals %d![/color]" % [team_tag, u_name, ab_name, t_name, result.damage, heal_amount])
 				if smite_target.is_dead:
@@ -865,7 +865,7 @@ func _trigger_ability(unit: Unit) -> void:
 					continue
 				if unit.position.distance_to(ally.position) <= unit.ability_range:
 					ally.current_hp = mini(ally.current_hp + heal_amount, ally.max_hp)
-					ally.health_bar.value = ally.current_hp
+					ally.queue_redraw()
 					if ally.corrosive_dot > 0:
 						ally.corrosive_dot = 0
 						ally.restore_armor()
@@ -904,7 +904,7 @@ func _trigger_ability(unit: Unit) -> void:
 				# Ignore armor: deal directly to HP
 				pierce_target.current_hp -= pierce_dmg
 				pierce_target.current_hp = maxi(pierce_target.current_hp, 0)
-				pierce_target.health_bar.value = pierce_target.current_hp
+				pierce_target.queue_redraw()
 				var t_name := pierce_target.display_name if pierce_target.display_name != "" else pierce_target.unit_data.unit_name
 				combat_event.emit("[color=%s]%s fires %s at %s for %d (ignores armor)![/color]" % [team_tag, u_name, ab_name, t_name, pierce_dmg])
 				if pierce_target.current_hp <= 0:

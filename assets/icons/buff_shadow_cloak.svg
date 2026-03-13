@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Shadow Cloak (Assassin): Hooded cloak with dagger -->
+  <path d="M 32 8 Q 12 18 12 40 L 20 56 L 44 56 L 52 40 Q 52 18 32 8 Z"
+        fill="#37474F" stroke="#546E7A" stroke-width="1.5"/>
+  <!-- Hood interior darkness -->
+  <ellipse cx="32" cy="26" rx="10" ry="8" fill="#1A1A2E" opacity="0.8"/>
+  <!-- Glowing eyes -->
+  <circle cx="28" cy="26" r="2" fill="#B388FF" opacity="0.9"/>
+  <circle cx="36" cy="26" r="2" fill="#B388FF" opacity="0.9"/>
+  <!-- Small dagger -->
+  <polygon points="32,38 30,48 32,46 34,48" fill="#B0BEC5" opacity="0.7"/>
+</svg>

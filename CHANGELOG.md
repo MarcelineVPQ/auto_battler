@@ -1,5 +1,86 @@
 # Changelog
 
+## v0.11.0 — AI Economy-Simulated Enemies
+
+### AI Squad Builder
+- Enemy squads in map mode are now built by simulating an AI player's economy progression (buying heroes, merging for XP/levels, purchasing upgrades, buying farms)
+- Enemies have realistic levels, XP, and stats derived from actual merges instead of arbitrary stat multipliers
+- AI tuning constants: 75% win rate, 85% gold efficiency, 60% merge probability
+- Deterministic seeded generation — same map node always produces the same enemy squad
+- Budget scaling via `budget_mult`: BATTLE (1.0x), ELITE (1.5x), BOSS (2.0x) income per round
+
+### Enemy Spawning Overhaul
+- AI-simulated enemies apply pre-computed stats, modifier flags, and upgrade lists directly
+- Enemy info panel now shows accurate level/XP values (not "Level 1 XP 0/4" with inflated stats)
+- Enemy squads use 2-3 focused classes from strategy weights instead of uniform compositions
+- Legacy level-based stat multiplier preserved for ranked PvP and encounter waves
+- Battle name displays strategy name (e.g. "vs Blitz Rush", "vs Holy Guard")
+
+---
+
+## v0.10.0 — Roguelike Map Mode, Encounters, Visual Overhaul
+
+### Roguelike Map Mode
+- New single-player mode: 3-act roguelike progression with 6-7 floors per act
+- 7 node types: Battle, Elite, Boss, Rest, Shop, Treasure, Unknown
+- Seeded procedural map generation with branching paths
+- Map overlay with interactive node selection and path visualization
+- Map state saved/restored for mid-run continuity
+
+### Encounters & Boss Fights
+- 10+ handcrafted elite encounters (Iron Phalanx, Venomfang Pack, Shadow Court, etc.)
+- Act-specific boss encounters with named boss units, custom abilities, and stat multipliers
+- Encounters specify exact hero compositions, ability variants, and modifier flags
+- Boss units get 1.3x visual scale and 2.0-3.0x stat multipliers
+
+### Map Node Events
+- **Rest**: Heal 1 life OR receive a free random upgrade
+- **Wandering Merchant Shop**: Extra house (+1 farm), restore life, rare/epic upgrades, squad heal
+- **Treasure**: Free random upgrade applied via targeting mode
+- **Unknown Events**: 6 event types — ambush battle, free heal, free upgrade, cursed gold (-1 life for +15g), training (+2 dmg all), discounted market
+
+### Unit Rendering Overhaul
+- Replaced ProgressBar-based health/armor/mana bars with custom ring-based rendering
+- Concentric rings: mana (blue inner), health (color-coded), armor (silver), team border (blue/red)
+- Name label with black outline drawn below rings
+- Status icons for active buffs/debuffs displayed below name
+- All bar updates now use `queue_redraw()` for consistent visual refresh
+
+### Upgrade Selling
+- Upgrades can be sold from the info panel for 75% refund (scaled by level)
+- Full stat reversal for all 40+ upgrade types via `_remove_stat_buff()`
+
+### Shop & UI Improvements
+- Shop cards show class name, gold cost (highlighted), and house icons for farm cost
+- Freeze lock overlay: blue tint + lock emoji on frozen unsold items
+- Farms display replaced with visual house icons (solid = owned)
+- Merge buttons appear inline below hero preview instead of drag-to-merge
+- "Not enough farms!" renamed to "Not enough houses!"
+
+### Economy & Balance
+- XP gain rebalanced: 12% stat boost per XP point, 28% on level-up (every 4 XP)
+- Enemy level cap raised from 10 to 12
+- Armor formula adjusted: `damage * 40/(40+armor)` (was `100/(100+armor)`)
+- Hard wave (option 3) budget increased
+- `ability_cooldown` added to premium stats list
+
+### Backend & Profiles
+- Account name pushed to Nakama username on profile creation
+- Fixed RPC double-encoding for Nakama gRPC-gateway
+- Leaderboard shows "(You)" highlighted green for player's own entry
+- Offline fallback: local profile leaderboard instead of empty list
+- `ProfileManager.get_all_profile_stats()` for local leaderboard entries
+
+### Save System
+- Extended save data for map mode: `run_map`, `current_act`, `map_node_id`, `is_map_mode`, `encountered_ids`
+- Resume logic: map mode saves return to MAP phase, ranked saves to WAVE_SELECT
+
+### New Assets
+- 19 buff/upgrade SVG icons (corrosive, living shield, berserk, war paint, etc.)
+- House icons (solid + outline) for farm display
+
+---
+
 ## v0.9.0 — Local Profiles
 
 ### Profile System

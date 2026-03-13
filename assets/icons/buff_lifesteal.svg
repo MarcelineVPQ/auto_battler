@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Lifesteal: Fanged heart / blood heart -->
+  <path d="M 32 54 Q 8 36 8 20 Q 8 8 20 8 Q 28 8 32 16 Q 36 8 44 8 Q 56 8 56 20 Q 56 36 32 54 Z"
+        fill="#8B0000" stroke="#CC2222" stroke-width="2"/>
+  <path d="M 32 48 Q 14 34 14 22 Q 14 14 22 14 Q 28 14 32 20"
+        fill="#B71C1C" opacity="0.4"/>
+  <!-- Fangs -->
+  <polygon points="24,26 26,36 22,36" fill="#FFFFFF" opacity="0.8"/>
+  <polygon points="40,26 42,36 38,36" fill="#FFFFFF" opacity="0.8"/>
+  <!-- Blood drop -->
+  <ellipse cx="32" cy="42" rx="3" ry="4" fill="#FF1744" opacity="0.6"/>
+</svg>

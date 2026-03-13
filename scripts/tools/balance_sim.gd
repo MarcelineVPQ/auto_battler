@@ -271,8 +271,8 @@ func _run_single_simulation() -> Array[RoundResult]:
 			player_str += _unit_strength(u)
 
 		# --- Generate enemy army (mirrors _generate_single_wave) ---
-		var enemy_budget := round_num + 2 + randi_range(0, maxi(round_num / 3, 1))
-		var enemy_base_level := clampi(ceili(float(round_num) / 2.0), 1, 10)
+		var enemy_budget := round_num + 2 + round_num / 5 + randi_range(0, maxi(round_num / 3, 1))
+		var enemy_base_level := clampi(ceili(float(round_num) / 2.0) + maxi(round_num - 10, 0) / 3, 1, 12)
 
 		# Enemy unit pool: pick from all 8 with round-weighted bias
 		var enemy_units: Array[UnitStats] = []
@@ -283,7 +283,7 @@ func _run_single_simulation() -> Array[RoundResult]:
 			var pick := _pick_weighted_enemy_unit(round_num)
 			if enemy_budget_used + pick.pop_cost <= enemy_budget:
 				var eu := pick.duplicate_stats()
-				var lvl := clampi(enemy_base_level + randi_range(-1, 1), 1, 10)
+				var lvl := clampi(enemy_base_level + randi_range(-1, 1), 1, 12)
 				_apply_enemy_level(eu, lvl)
 				enemy_units.append(eu)
 				enemy_budget_used += eu.pop_cost

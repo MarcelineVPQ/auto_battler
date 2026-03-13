@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Thick Plate (Tank): Heavy armor chestplate -->
+  <path d="M 16 18 L 32 10 L 48 18 L 50 44 L 40 56 L 24 56 L 14 44 Z"
+        fill="#546E7A" stroke="#78909C" stroke-width="2"/>
+  <!-- Plate layers -->
+  <path d="M 20 22 L 32 16 L 44 22 L 44 34 L 32 38 L 20 34 Z"
+        fill="#78909C" opacity="0.4" stroke="#90A4AE" stroke-width="1"/>
+  <!-- Center rivet -->
+  <circle cx="32" cy="28" r="4" fill="#90A4AE" opacity="0.5"/>
+  <circle cx="32" cy="28" r="2" fill="#B0BEC5" opacity="0.6"/>
+  <!-- Shine -->
+  <line x1="22" y1="22" x2="28" y2="20" stroke="#FFFFFF" stroke-width="1" opacity="0.3"/>
+</svg>

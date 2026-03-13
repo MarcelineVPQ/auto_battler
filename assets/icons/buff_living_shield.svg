@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Living Shield: Glowing bubble shield -->
+  <circle cx="32" cy="32" r="24" fill="#2196F3" opacity="0.15" stroke="#42A5F5" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="18" fill="#42A5F5" opacity="0.2" stroke="#90CAF9" stroke-width="1.5"/>
+  <!-- Inner shield shape -->
+  <path d="M 32 16 L 44 22 L 44 36 Q 44 46 32 50 Q 20 46 20 36 L 20 22 Z"
+        fill="#64B5F6" opacity="0.4" stroke="#90CAF9" stroke-width="1"/>
+  <!-- Shine -->
+  <circle cx="26" cy="24" r="3" fill="#FFFFFF" opacity="0.5"/>
+</svg>

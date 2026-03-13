@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Soul Binding (Summoner): Chain link with skull -->
+  <!-- Chain links -->
+  <ellipse cx="18" cy="20" rx="8" ry="10" fill="none" stroke="#78909C" stroke-width="2.5"/>
+  <ellipse cx="46" cy="20" rx="8" ry="10" fill="none" stroke="#78909C" stroke-width="2.5"/>
+  <ellipse cx="32" cy="20" rx="8" ry="10" fill="none" stroke="#90A4AE" stroke-width="2.5"/>
+  <!-- Skull below -->
+  <circle cx="32" cy="44" r="10" fill="#E0E0E0" stroke="#9E9E9E" stroke-width="1.5"/>
+  <circle cx="28" cy="42" r="2.5" fill="#37474F"/>
+  <circle cx="36" cy="42" r="2.5" fill="#37474F"/>
+  <path d="M 28 50 L 30 48 L 32 50 L 34 48 L 36 50" fill="none" stroke="#37474F" stroke-width="1.5"/>
+  <!-- Soul glow -->
+  <circle cx="32" cy="44" r="14" fill="#B388FF" opacity="0.1"/>
+</svg>

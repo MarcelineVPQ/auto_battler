@@ -13,13 +13,54 @@
 
 ---
 
-## Core Loop
+## Game Modes
 
-1. **Wave Select** — Choose from 3 enemy wave options (composition, unit count, strategy)
+### Ranked PvP (20 Rounds)
+Linear 20-round mode against real player squads (fetched from Nakama backend) or AI opponents.
+
+**Flow:** WAVE_SELECT → PREP → BATTLE → RESULT → repeat
+
+1. **Wave Select** — Choose from 3 enemy wave options (real player squads or AI compositions)
 2. **Prep Phase** — Buy heroes/upgrades from the shop bar, drag-and-drop to position on arena
 3. **Battle Phase** — Press "Ready", units auto-fight the enemy wave
 4. **Result** — Win or lose; losing costs a life. Earn income, advance to next round
 5. **Repeat** — 20 rounds of escalating difficulty
+
+### Roguelike Map Mode (3 Acts)
+Single-player roguelike progression through a branching node map across 3 acts (6-7 floors each).
+
+**Flow:** MAP → PREP → BATTLE → RESULT → MAP → repeat
+
+1. **Map** — Select a node from the branching map (Battle, Elite, Boss, Rest, Shop, Treasure, Unknown)
+2. **Prep Phase** — Buy heroes/upgrades, position units
+3. **Battle Phase** — Auto-combat against AI-economy-simulated squads or handcrafted encounters
+4. **Result** — Victory advances to next map node; defeat reverts to pre-battle state
+5. **Map** — Choose next node from available paths
+
+#### Map Node Types
+
+| Node | Symbol | Description |
+|------|--------|-------------|
+| Battle | ⚔ | Standard fight (1.0x budget) |
+| Elite | 💀 | Harder fight (1.5x budget) or handcrafted encounter |
+| Boss | 👑 | Act boss (2.0x budget) or handcrafted boss encounter |
+| Rest | 🔥 | Heal 1 life OR receive a free upgrade |
+| Shop | 💰 | Wandering Merchant — extra house, restore life, rare/epic upgrades, squad heal |
+| Treasure | 🎁 | Free random upgrade |
+| Unknown | ? | Random event — ambush, heal, upgrade, cursed gold, training, market |
+
+#### AI Enemy Generation
+Enemy squads in map mode are built by simulating an AI player's economy progression:
+- Simulates rounds 1→N: earning income, buying farms, purchasing heroes, merging duplicates for XP/levels, buying upgrades
+- Income scaled by `budget_mult` (1.0x Battle, 1.5x Elite, 2.0x Boss)
+- Enemies have realistic levels, stats, and upgrades derived from actual merges — not arbitrary multipliers
+- Deterministic seeded generation per map node for consistency
+- Tuning: 75% AI win rate, 85% gold efficiency, 60% merge probability
+
+#### Encounters & Bosses
+- 10+ handcrafted elite encounters with named units, specific ability variants, and modifier flags
+- Act-specific boss encounters with boss units at 2.0-3.0x stat multipliers and 1.3x visual scale
+- Encounters take priority for Elite/Boss nodes; AI builder is the fallback
 
 ### Key Flow Details
 
@@ -73,18 +114,20 @@ Other stats (not shown in upgrade panel):
 - Can be purchased during prep phase while the hero is selected
 - Allows fine-tuning individual heroes beyond their base class stats
 
-### Hero Stacking (Merging)
+### Hero Stacking (Merging / XP System)
 
-- Drag a **duplicate hero** (same class) onto an existing one to **merge** them
-- Merged hero gets **+25% to all stats** (damage, HP, atk speed, range, etc.)
-- The consumed hero is removed — does not count toward squad cap
-- Can stack multiple times for compounding bonuses
-- Upgrades applied before merge are included in the 25% boost
+- Buying a duplicate hero auto-merges into an existing copy (grants 1 XP)
+- If multiple copies exist, enter targeting mode to choose the merge target
+- Hold **Shift** when buying to force-spawn instead of merging
+- **4 XP to level up** — each XP grants ~12% stat boost, each level-up grants ~28% stat boost
+- No max level — compounding stat growth rewards investment in a single hero
+- Consumed hero's XP carries over to the target
 
 ### Upgrade Slots
 
-- Each hero has upgrade slots (e.g., 0/2)
-- Upgrade cards are purchased from the shop and applied to a hero
+- Each hero has upgrade slots gated by level: **level + 1** max slots (Level 1 = 2, Level 2 = 3, etc.)
+- Upgrade cards are purchased from the shop and applied to a hero via targeting mode
+- Upgrades can be **sold** from the info panel for 75% refund (scaled by level)
 - Stacking identical upgrades creates compounding effects
 
 ### Hero Classes (9 total)
@@ -122,8 +165,9 @@ Purchasable cards applied to heroes via targeting mode.
 
 | Rarity | Cost | Availability | Examples |
 |--------|------|-------------|---------|
-| Rare | 12g | Round 5+ | Blood Rage (Grunt), Deadeye (Archer), Phantom Step (Assassin), Fortress (Tank), Soul Rend (Warlock), Hellfire (Warlock), Divine Covenant (Priest), Toxic Mastery (Herbalist), Holy Vanguard (Paladin) |
-| Epic | 18g | Round 10+ | Rampage (Grunt), Hawkeye (Archer), Death's Embrace (Assassin), Bastion (Tank), Dark Pact (Warlock), Ascension (Priest), Plague Lord (Herbalist) |
+| Normal | 5g | Always | War Paint (Grunt), Venom Arrow (Archer), Shadow Cloak (Assassin), Thick Plate (Tank), Dark Sigil (Warlock), Sacred Blessing (Priest), Herbal Brew (Herbalist), Shield of Faith (Paladin), Soul Binding (Summoner) |
+| Rare | 12g | Round 5+ | Blood Rage (Grunt), Deadeye (Archer), Phantom Step (Assassin), Fortress (Tank), Soul Rend (Warlock), Hellfire (Warlock), Divine Covenant (Priest), Toxic Mastery (Herbalist), Holy Vanguard (Paladin), Necromancy (Summoner) |
+| Epic | 18g | Round 10+ | Rampage (Grunt), Hawkeye (Archer), Death's Embrace (Assassin), Bastion (Tank), Dark Pact (Warlock), Ascension (Priest), Plague Lord (Herbalist), Divine Bulwark (Paladin), Legion Master (Summoner) |
 
 ### Rarity Tiers
 
@@ -172,7 +216,7 @@ Purchasable cards applied to heroes via targeting mode.
 - **Gold snapshot:** gold is snapshotted at round start and restored on defeat
 - **Autosave:** game state saved after every round; ESC opens save-and-quit overlay
 
-### Round Structure
+### Round Structure (Ranked PvP)
 
 | Round | Encounter | Notes |
 |-------|-----------|-------|
@@ -180,6 +224,14 @@ Purchasable cards applied to heroes via targeting mode.
 | 6-10 | Mid waves | Enemies gain abilities |
 | 11-15 | Late waves | Tougher compositions |
 | 16-20 | Final waves | Boss-tier difficulty |
+
+### Act Structure (Map Mode)
+
+| Act | Floors | Effective Rounds | Boss |
+|-----|--------|-----------------|------|
+| 1 | 6 | 1-6 | Act 1 Boss |
+| 2 | 7 | 7-13 | Act 2 Boss |
+| 3 | 7 | 14-20 | Act 3 Boss |
 
 ---
 
@@ -290,8 +342,11 @@ Appears on the right side when clicking a hero:
 - [x] **Phase 6:** Ranked PvP, Nakama backend, leaderboard
 - [x] **Phase 7:** Save system, autosave, continue from save
 - [x] **Phase 8:** Local profiles, stats tracking
-- [ ] **Phase 9:** Hero creator / profile picture integration
-- [ ] **Phase 10:** Polish, meta-progression, unlockables
+- [x] **Phase 9:** Roguelike map mode, encounters, bosses
+- [x] **Phase 10:** Unit visual overhaul (ring-based rendering), upgrade selling
+- [x] **Phase 11:** AI economy-simulated enemy generation
+- [ ] **Phase 12:** Hero creator / profile picture integration
+- [ ] **Phase 13:** Polish, meta-progression, unlockables
 
 ---
 
@@ -336,6 +391,12 @@ Start with: `cd nakama && docker compose up -d`
 | `scripts/pvp/elo_calculator.gd` | ELO math (backend-agnostic) |
 | `scripts/pvp/opponent_cache.gd` | Offline opponent fallback cache |
 | `scripts/pvp/squad_serializer.gd` | Squad ↔ JSON conversion |
+| `scripts/map/map_data.gd` | Map configuration, node types, act/floor mapping |
+| `scripts/map/map_generator.gd` | Procedural map generation, node tracking |
+| `scripts/map/map_overlay.gd` | Interactive map UI overlay |
+| `scripts/map/map_canvas.gd` | Custom map drawing (nodes, paths) |
+| `scripts/data/encounters.gd` | Handcrafted elite/boss encounter definitions |
+| `scripts/data/ai_squad_builder.gd` | AI economy simulation for enemy squads |
 | `nakama/data/modules/main.ts` | Server-side RPCs |
 | `nakama/docker-compose.yml` | Docker infrastructure |
 
@@ -346,7 +407,6 @@ Start with: `cd nakama && docker compose up -d`
 - _Unlockables / meta-progression between runs?_
 - _Hero creator / custom profile pictures?_
 - _Additional hero classes?_
-- _Boss rounds?_
 
 ---
 

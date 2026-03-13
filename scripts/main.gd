@@ -28,9 +28,31 @@ const BUFF_ICONS: Dictionary = {
 	"max_mana": preload("res://assets/icons/buff_mana.svg"),
 	"skill_proc_chance": preload("res://assets/icons/buff_skill.svg"),
 	"primed": preload("res://assets/icons/buff_primed.svg"),
+	"corrosive": preload("res://assets/icons/buff_corrosive.svg"),
+	"living_shield": preload("res://assets/icons/buff_living_shield.svg"),
+	"sepsis": preload("res://assets/icons/buff_sepsis.svg"),
+	"thorns_slow": preload("res://assets/icons/buff_thorns.svg"),
+	"lifesteal": preload("res://assets/icons/buff_lifesteal.svg"),
+	"berserk": preload("res://assets/icons/buff_berserk.svg"),
+	"last_stand": preload("res://assets/icons/buff_last_stand.svg"),
+	"relentless": preload("res://assets/icons/buff_relentless.svg"),
+	"invincible": preload("res://assets/icons/buff_invincible.svg"),
+	"haymaker": preload("res://assets/icons/buff_haymaker.svg"),
+	"war_paint": preload("res://assets/icons/buff_war_paint.svg"),
+	"venom_arrow": preload("res://assets/icons/buff_venom_arrow.svg"),
+	"shadow_cloak": preload("res://assets/icons/buff_shadow_cloak.svg"),
+	"thick_plate": preload("res://assets/icons/buff_thick_plate.svg"),
+	"dark_sigil": preload("res://assets/icons/buff_dark_sigil.svg"),
+	"sacred_blessing": preload("res://assets/icons/buff_sacred_blessing.svg"),
+	"herbal_brew": preload("res://assets/icons/buff_herbal_brew.svg"),
+	"shield_of_faith": preload("res://assets/icons/buff_shield_of_faith.svg"),
+	"soul_binding": preload("res://assets/icons/buff_soul_binding.svg"),
 	"_rare": preload("res://assets/icons/buff_rare.svg"),
 	"_epic": preload("res://assets/icons/buff_epic.svg"),
 }
+
+const HOUSE_SOLID: Texture2D = preload("res://assets/icons/house_solid.svg")
+const HOUSE_OUTLINE: Texture2D = preload("res://assets/icons/house_outline.svg")
 
 # Class color palette for UI cards
 const CLASS_COLORS: Dictionary = {
@@ -151,6 +173,8 @@ var wave_strategies: Array[Dictionary] = [
 
 # Squad persistence — saves runtime stats between rounds
 var player_squad: Array = []
+var _pre_battle_positions: Dictionary = {}  # display_name -> Vector2
+var _prep_snapshot: Dictionary = {}  # Snapshot of pre-shopping state for map mode defeat revert
 
 # Shop state
 var shop_slots: Array = []
@@ -202,6 +226,9 @@ var _info_unit: Unit = null
 # Warning feedback label
 var warning_label: Label
 
+# Side-panel house-icon row (replaces farms_label text)
+var farms_row: HBoxContainer
+
 # Battle UI — strength bar, DPS panel & combat log
 var strength_bar_container: HBoxContainer
 var strength_bar_player: ColorRect
@@ -235,6 +262,17 @@ var _last_result: String = ""
 # Quit overlay
 var quit_overlay: ColorRect
 
+# Map overlay & node overlays
+var map_overlay: MapOverlay
+var rest_overlay: ColorRect
+var special_shop_overlay: ColorRect
+var treasure_overlay: ColorRect
+var event_overlay: ColorRect
+var _current_map_node: Dictionary = {}
+var _map_upgrade_pending: Dictionary = {}  # for rest/treasure free upgrades
+var _targeting_map_upgrade: bool = false
+var _map_upgrade_return_to: String = ""  # "shop", "event_market", or "" (complete node)
+
 # Gold counting animation
 var _gold_anim_base: int = 0
 var _gold_anim_won: int = 0
@@ -254,12 +292,24 @@ func _ready() -> void:
 	GameManager.lives_changed.connect(func(_l): _update_ui())
 	GameManager.game_over.connect(_on_game_over)
 
+	# Replace FarmsLabel text with a row of house icons
+	farms_label.visible = false
+	farms_row = HBoxContainer.new()
+	farms_row.add_theme_constant_override("separation", 3)
+	farms_label.add_sibling(farms_row)
+	farms_label.get_parent().move_child(farms_row, farms_label.get_index() + 1)
+
 	_build_warning_label()
 	_build_wave_select_ui()
 	_build_shop_bar()
 	_build_battle_ui()
 	_build_result_overlay()
 	_build_quit_overlay()
+	_build_map_overlay()
+	_build_rest_overlay()
+	_build_special_shop_overlay()
+	_build_treasure_overlay()
+	_build_event_overlay()
 	_hide_info_panel()
 	_hide_shop()
 
@@ -281,15 +331,20 @@ func _ready() -> void:
 		if not save_data.is_empty():
 			GameManager.restore_from_save(save_data)
 			player_squad = SquadSerializer.json_to_squad(save_data.get("player_squad", []))
-			# Go straight to wave select for the current round (no advance_round income)
-			_restore_squad()
-			_roll_shop()
-			_show_shop()
-			GameManager.change_phase(GameManager.Phase.PREP)
+			if GameManager.is_map_mode:
+				GameManager.change_phase(GameManager.Phase.MAP)
+			else:
+				GameManager.change_phase(GameManager.Phase.WAVE_SELECT)
 			_update_ui()
 			return
 
-	GameManager.advance_round()
+	if not ranked_mode:
+		GameManager.is_map_mode = true
+		if GameManager.run_map.is_empty():
+			GameManager.run_map = MapGenerator.generate()
+		GameManager.advance_to_map()
+	else:
+		GameManager.advance_round()
 
 # ── Warning Label ──────────────────────────────────────────
 
@@ -592,9 +647,16 @@ func _on_result_continue() -> void:
 			GameManager.reset()
 			get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
 		"victory":
-			_start_next_round()
+			if GameManager.is_map_mode:
+				_advance_map_node()
+			else:
+				_start_next_round()
 		"defeat", "draw":
-			_start_rematch()
+			if GameManager.is_map_mode:
+				# In map mode, defeat/draw = rematch same node
+				_start_rematch()
+			else:
+				_start_rematch()
 		"game_over":
 			GameManager.delete_save()
 			GameManager.reset()
@@ -658,6 +720,680 @@ func _on_save_and_quit() -> void:
 	AudioManager.stop_music()
 	GameManager.reset()
 	get_tree().change_scene_to_file("res://scenes/menu/main_menu.tscn")
+
+# ── Map Overlay ──────────────────────────────────────────────
+
+func _build_map_overlay() -> void:
+	map_overlay = MapOverlay.new()
+	map_overlay.build()
+	map_overlay.node_selected.connect(_on_map_node_selected)
+	ui_layer.add_child(map_overlay)
+
+func _on_map_node_selected(node_id: int) -> void:
+	var node := MapGenerator.get_node_by_id(GameManager.run_map, node_id)
+	if node.is_empty():
+		return
+	_current_map_node = node
+	GameManager.map_node_id = node_id
+	GameManager.run_map["current_node_id"] = node_id
+
+	var node_type: int = node["type"]
+	match node_type:
+		MapData.NodeType.BATTLE, MapData.NodeType.ELITE, MapData.NodeType.BOSS:
+			_start_map_battle(node)
+		MapData.NodeType.REST:
+			_show_rest_overlay()
+		MapData.NodeType.SHOP:
+			_show_special_shop_overlay()
+		MapData.NodeType.TREASURE:
+			_show_treasure_overlay()
+		MapData.NodeType.UNKNOWN:
+			_show_event_overlay()
+
+func _start_map_battle(node: Dictionary) -> void:
+	map_overlay.visible = false
+	var act: int = node["act"]
+	var floor_idx: int = node["floor"]
+	var node_type: int = node["type"]
+	var eff_round := MapData.get_effective_round(act, floor_idx)
+	var budget_mult := MapData.get_budget_multiplier(node_type)
+
+	# Try handcrafted encounter for elite/boss nodes
+	if node_type == MapData.NodeType.ELITE or node_type == MapData.NodeType.BOSS:
+		var encounter: Dictionary
+		if node_type == MapData.NodeType.ELITE:
+			encounter = Encounters.pick_elite(act, GameManager.encountered_ids)
+		else:
+			encounter = Encounters.pick_boss(act, GameManager.encountered_ids)
+		if not encounter.is_empty():
+			GameManager.encountered_ids.append(encounter.id)
+			var wave := _build_encounter_wave(encounter, eff_round)
+			wave_options = [wave]
+			_on_wave_selected(0)
+			return
+
+	# Fallback: AI economy-simulated squad
+	var battle_seed := hash(GameManager.run_map.get("seed", 0) + node.get("id", 0))
+	var wave := AiSquadBuilder.build_squad(eff_round, budget_mult, battle_seed, hero_pool, upgrade_pool, wave_strategies)
+	wave_options = [wave]
+	_on_wave_selected(0)
+
+func _complete_map_node() -> void:
+	if _current_map_node.is_empty():
+		return
+	var node_id: int = _current_map_node["id"]
+	MapGenerator.mark_node_visited(GameManager.run_map, node_id)
+	MapGenerator.update_available_nodes(GameManager.run_map, node_id)
+	_current_map_node = {}
+	# Clear board — units may have been spawned for upgrade targeting
+	board.clear_all()
+	board.deselect()
+	_hide_info_panel()
+	GameManager.advance_to_map()
+
+# ── Rest Overlay ─────────────────────────────────────────────
+
+func _build_rest_overlay() -> void:
+	rest_overlay = ColorRect.new()
+	rest_overlay.color = Color(0, 0, 0, 0.8)
+	rest_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rest_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	rest_overlay.visible = false
+	ui_layer.add_child(rest_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rest_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(400, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	style.border_color = Color(0.3, 0.8, 0.4, 0.8)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Campfire Rest"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.3, 0.8, 0.4))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = "The warmth of the fire soothes your weary team.\nChoose a benefit:"
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 14)
+	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	vbox.add_child(desc)
+
+	var btn_row := VBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	vbox.add_child(btn_row)
+
+	var heal_btn := Button.new()
+	heal_btn.text = "Restore 1 Life"
+	heal_btn.custom_minimum_size = Vector2(0, 44)
+	heal_btn.pressed.connect(_on_rest_heal)
+	btn_row.add_child(heal_btn)
+
+	var upgrade_btn := Button.new()
+	upgrade_btn.text = "Free Upgrade (choose a unit)"
+	upgrade_btn.custom_minimum_size = Vector2(0, 44)
+	upgrade_btn.pressed.connect(_on_rest_upgrade)
+	btn_row.add_child(upgrade_btn)
+
+func _show_rest_overlay() -> void:
+	map_overlay.visible = false
+	rest_overlay.visible = true
+
+func _on_rest_heal() -> void:
+	rest_overlay.visible = false
+	GameManager.lives += 1
+	GameManager.lives_changed.emit(GameManager.lives)
+	_show_warning("+1 Life restored!")
+	AudioManager.play("victory")
+	_complete_map_node()
+
+func _on_rest_upgrade() -> void:
+	rest_overlay.visible = false
+	# Pick a random generic upgrade (no class restriction) for free
+	var generic_upgrades := upgrade_pool.filter(func(u): return not u.has("class_req"))
+	var upgrade: Dictionary = generic_upgrades.pick_random().duplicate()
+	_map_upgrade_pending = upgrade
+	_targeting_map_upgrade = true
+	board.targeting_mode = true
+	board.targeting_class_req = upgrade.get("class_req", "")
+	Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+	board.queue_redraw()
+	_restore_squad()
+	_show_warning("Apply free %s upgrade — click a unit" % upgrade.name)
+
+# ── Special Shop Overlay ─────────────────────────────────────
+
+func _build_special_shop_overlay() -> void:
+	special_shop_overlay = ColorRect.new()
+	special_shop_overlay.color = Color(0, 0, 0, 0.8)
+	special_shop_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	special_shop_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	special_shop_overlay.visible = false
+	ui_layer.add_child(special_shop_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	special_shop_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	style.border_color = Color(1.0, 0.85, 0.2, 0.8)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Wandering Merchant"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = "Exclusive wares not found in the regular shop."
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 14)
+	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	vbox.add_child(desc)
+
+	# Items will be dynamically populated
+	var items_vbox := VBoxContainer.new()
+	items_vbox.name = "ShopItems"
+	items_vbox.add_theme_constant_override("separation", 8)
+	vbox.add_child(items_vbox)
+
+	var leave_btn := Button.new()
+	leave_btn.text = "Leave"
+	leave_btn.custom_minimum_size = Vector2(0, 40)
+	leave_btn.pressed.connect(_on_special_shop_leave)
+	vbox.add_child(leave_btn)
+
+func _show_special_shop_overlay() -> void:
+	map_overlay.visible = false
+	# Populate items
+	var items_vbox: VBoxContainer = special_shop_overlay.find_child("ShopItems", true, false)
+	for child in items_vbox.get_children():
+		child.queue_free()
+
+	var shop_items := [
+		{"name": "Extra House (+1 farm)", "cost": 8, "action": "farm"},
+		{"name": "Restore Life (+1)", "cost": 15, "action": "life"},
+		{"name": "Random Rare Upgrade", "cost": 10, "action": "rare_upgrade"},
+		{"name": "Full Squad Heal (+30 HP each)", "cost": 12, "action": "squad_heal"},
+	]
+	# Act 2+ gets epic upgrade option
+	if GameManager.run_map.get("current_act", 1) >= 2:
+		shop_items.append({"name": "Random Epic Upgrade", "cost": 20, "action": "epic_upgrade"})
+
+	for item in shop_items:
+		var btn := Button.new()
+		btn.text = "%s — %dg" % [item["name"], item["cost"]]
+		btn.custom_minimum_size = Vector2(0, 40)
+		var action: String = item["action"]
+		var cost: int = item["cost"]
+		btn.pressed.connect(func(): _buy_special_shop_item(action, cost, btn))
+		items_vbox.add_child(btn)
+
+	special_shop_overlay.visible = true
+
+func _buy_special_shop_item(action: String, cost: int, btn: Button) -> void:
+	if not GameManager.spend_gold(cost):
+		_show_warning("Not enough gold!")
+		return
+	btn.disabled = true
+	btn.text += " [SOLD]"
+	AudioManager.play("buy")
+
+	match action:
+		"farm":
+			GameManager.farms += 1
+			GameManager.farm_purchases += 1
+			GameManager.farms_changed.emit()
+			_show_warning("+1 House!")
+		"life":
+			GameManager.lives += 1
+			GameManager.lives_changed.emit(GameManager.lives)
+			_show_warning("+1 Life!")
+		"rare_upgrade":
+			special_shop_overlay.visible = false
+			var rare_upgrades := upgrade_pool.filter(func(u): return u.rarity == "Rare")
+			if rare_upgrades.is_empty():
+				rare_upgrades = upgrade_pool
+			var upgrade: Dictionary = rare_upgrades.pick_random().duplicate()
+			_map_upgrade_pending = upgrade
+			_targeting_map_upgrade = true
+			_map_upgrade_return_to = "shop"
+			board.targeting_mode = true
+			board.targeting_class_req = upgrade.get("class_req", "")
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+			board.queue_redraw()
+			_restore_squad()
+			_show_warning("Apply %s — click a unit" % upgrade.name)
+		"epic_upgrade":
+			special_shop_overlay.visible = false
+			var epic_upgrades := upgrade_pool.filter(func(u): return u.rarity == "Epic")
+			if epic_upgrades.is_empty():
+				epic_upgrades = upgrade_pool.filter(func(u): return u.rarity == "Rare")
+			var upgrade: Dictionary = epic_upgrades.pick_random().duplicate()
+			_map_upgrade_pending = upgrade
+			_targeting_map_upgrade = true
+			_map_upgrade_return_to = "shop"
+			board.targeting_mode = true
+			board.targeting_class_req = upgrade.get("class_req", "")
+			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+			board.queue_redraw()
+			_restore_squad()
+			_show_warning("Apply %s — click a unit" % upgrade.name)
+		"squad_heal":
+			for entry in player_squad:
+				if entry.has("stats"):
+					entry.stats.max_hp = entry.stats.get("max_hp", 100) + 30
+			_show_warning("Squad healed! +30 max HP each")
+	_update_ui()
+
+func _on_special_shop_leave() -> void:
+	special_shop_overlay.visible = false
+	_complete_map_node()
+
+# ── Treasure Overlay ─────────────────────────────────────────
+
+func _build_treasure_overlay() -> void:
+	treasure_overlay = ColorRect.new()
+	treasure_overlay.color = Color(0, 0, 0, 0.8)
+	treasure_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	treasure_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	treasure_overlay.visible = false
+	ui_layer.add_child(treasure_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	treasure_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(400, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	style.border_color = Color(0.65, 0.45, 0.85, 0.8)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "TreasureVBox"
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+func _show_treasure_overlay() -> void:
+	map_overlay.visible = false
+	var vbox: VBoxContainer = treasure_overlay.find_child("TreasureVBox", true, false)
+	for child in vbox.get_children():
+		child.queue_free()
+
+	# Pick a random rare/epic upgrade
+	var good_upgrades := upgrade_pool.filter(func(u): return u.rarity == "Rare" or u.rarity == "Epic")
+	if good_upgrades.is_empty():
+		good_upgrades = upgrade_pool
+	var upgrade: Dictionary = good_upgrades.pick_random().duplicate()
+
+	var title := Label.new()
+	title.text = "Treasure Chest!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.65, 0.45, 0.85))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = "You found: %s\n%s" % [upgrade.name, upgrade.desc]
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 16)
+	vbox.add_child(desc)
+
+	var btn_row := VBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	vbox.add_child(btn_row)
+
+	var apply_btn := Button.new()
+	apply_btn.text = "Apply to Unit"
+	apply_btn.custom_minimum_size = Vector2(0, 44)
+	apply_btn.pressed.connect(func():
+		treasure_overlay.visible = false
+		_map_upgrade_pending = upgrade
+		_targeting_map_upgrade = true
+		board.targeting_mode = true
+		board.targeting_class_req = upgrade.get("class_req", "")
+		Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+		board.queue_redraw()
+		_restore_squad()
+		_show_warning("Apply %s — click a unit" % upgrade.name)
+	)
+	btn_row.add_child(apply_btn)
+
+	var gold_amount := randi_range(8, 15)
+	var gold_btn := Button.new()
+	gold_btn.text = "Take Gold Instead (+%dg)" % gold_amount
+	gold_btn.custom_minimum_size = Vector2(0, 44)
+	gold_btn.pressed.connect(func():
+		treasure_overlay.visible = false
+		GameManager.gold += gold_amount
+		GameManager.gold_changed.emit(GameManager.gold)
+		_show_warning("+%dg gold!" % gold_amount)
+		_complete_map_node()
+	)
+	btn_row.add_child(gold_btn)
+
+	treasure_overlay.visible = true
+
+# ── Event Overlay (Unknown Nodes) ────────────────────────────
+
+const MAP_EVENTS := [
+	{"name": "Gold Cache", "desc": "You stumble upon a hidden stash of gold!", "type": "gold"},
+	{"name": "Ambush!", "desc": "Enemies spring from the shadows!", "type": "ambush"},
+	{"name": "Traveling Healer", "desc": "A kind healer offers to mend your wounds.", "type": "heal"},
+	{"name": "Mysterious Stranger", "desc": "A cloaked figure offers a strange enchantment...", "type": "upgrade"},
+	{"name": "Cursed Treasure", "desc": "A chest radiates dark energy. Great riches, but at a cost...", "type": "cursed"},
+	{"name": "Training Ground", "desc": "Your squad finds an abandoned training yard.", "type": "training"},
+	{"name": "Black Market", "desc": "A shady dealer offers rare wares at a discount.", "type": "market"},
+]
+
+func _build_event_overlay() -> void:
+	event_overlay = ColorRect.new()
+	event_overlay.color = Color(0, 0, 0, 0.8)
+	event_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	event_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	event_overlay.visible = false
+	ui_layer.add_child(event_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	event_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	style.border_color = Color(0.4, 0.7, 1.0, 0.8)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(24)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "EventVBox"
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+func _show_event_overlay() -> void:
+	map_overlay.visible = false
+	var vbox: VBoxContainer = event_overlay.find_child("EventVBox", true, false)
+	for child in vbox.get_children():
+		child.queue_free()
+
+	var event: Dictionary = MAP_EVENTS.pick_random()
+
+	var title := Label.new()
+	title.text = event["name"]
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.4, 0.7, 1.0))
+	vbox.add_child(title)
+
+	var desc := Label.new()
+	desc.text = event["desc"]
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.add_theme_font_size_override("font_size", 14)
+	desc.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(desc)
+
+	var btn_container := VBoxContainer.new()
+	btn_container.add_theme_constant_override("separation", 10)
+	vbox.add_child(btn_container)
+
+	match event["type"]:
+		"gold":
+			var gold_amount := randi_range(10, 20)
+			var btn := Button.new()
+			btn.text = "Take the gold (+%dg)" % gold_amount
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.pressed.connect(func():
+				event_overlay.visible = false
+				GameManager.gold += gold_amount
+				GameManager.gold_changed.emit(GameManager.gold)
+				_show_warning("+%dg gold!" % gold_amount)
+				AudioManager.play("buy")
+				_complete_map_node()
+			)
+			btn_container.add_child(btn)
+		"ambush":
+			var btn := Button.new()
+			btn.text = "Fight! (reduced enemy strength)"
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.pressed.connect(func():
+				event_overlay.visible = false
+				# Generate a half-strength battle
+				var act: int = _current_map_node.get("act", 1)
+				var floor_idx: int = _current_map_node.get("floor", 0)
+				var eff_round := MapData.get_effective_round(act, floor_idx)
+				var wave := _generate_single_wave(0, eff_round, 0.5)
+				wave_options = [wave]
+				_on_wave_selected(0)
+			)
+			btn_container.add_child(btn)
+		"heal":
+			var btn := Button.new()
+			btn.text = "Accept healing (+1 Life)"
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.pressed.connect(func():
+				event_overlay.visible = false
+				GameManager.lives += 1
+				GameManager.lives_changed.emit(GameManager.lives)
+				_show_warning("+1 Life!")
+				AudioManager.play("victory")
+				_complete_map_node()
+			)
+			btn_container.add_child(btn)
+		"upgrade":
+			var btn := Button.new()
+			btn.text = "Accept the enchantment"
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.pressed.connect(func():
+				event_overlay.visible = false
+				var generic_ups := upgrade_pool.filter(func(u): return not u.has("class_req"))
+				var upgrade: Dictionary = generic_ups.pick_random().duplicate()
+				_map_upgrade_pending = upgrade
+				_targeting_map_upgrade = true
+				board.targeting_mode = true
+				board.targeting_class_req = upgrade.get("class_req", "")
+				Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+				board.queue_redraw()
+				_restore_squad()
+				_show_warning("Apply %s — click a unit" % upgrade.name)
+			)
+			btn_container.add_child(btn)
+		"cursed":
+			var gold_amount := 15
+			var btn_take := Button.new()
+			btn_take.text = "Take treasure (+%dg, -1 Life)" % gold_amount
+			btn_take.custom_minimum_size = Vector2(0, 44)
+			btn_take.pressed.connect(func():
+				event_overlay.visible = false
+				GameManager.gold += gold_amount
+				GameManager.gold_changed.emit(GameManager.gold)
+				GameManager.lives -= 1
+				GameManager.lives_changed.emit(GameManager.lives)
+				_show_warning("+%dg gold, -1 Life!" % gold_amount)
+				if GameManager.lives <= 0:
+					GameManager.game_over.emit()
+				else:
+					_complete_map_node()
+			)
+			btn_container.add_child(btn_take)
+
+			var btn_leave := Button.new()
+			btn_leave.text = "Leave it alone"
+			btn_leave.custom_minimum_size = Vector2(0, 44)
+			btn_leave.pressed.connect(func():
+				event_overlay.visible = false
+				_complete_map_node()
+			)
+			btn_container.add_child(btn_leave)
+		"training":
+			var btn := Button.new()
+			btn.text = "Train your squad (+2 damage each)"
+			btn.custom_minimum_size = Vector2(0, 44)
+			btn.pressed.connect(func():
+				event_overlay.visible = false
+				for entry in player_squad:
+					if entry.has("stats"):
+						entry.stats.damage = entry.stats.get("damage", 10) + 2
+				_show_warning("All units gained +2 damage!")
+				AudioManager.play("upgrade")
+				_complete_map_node()
+			)
+			btn_container.add_child(btn)
+		"market":
+			# Two rare upgrades at half price
+			var rare_upgrades := upgrade_pool.filter(func(u): return u.rarity == "Rare")
+			if rare_upgrades.size() < 2:
+				rare_upgrades = upgrade_pool
+			rare_upgrades.shuffle()
+			for i in range(mini(2, rare_upgrades.size())):
+				var upgrade: Dictionary = rare_upgrades[i].duplicate()
+				var half_cost: int = maxi(1, upgrade.cost / 2)
+				var btn := Button.new()
+				btn.text = "%s — %dg (50%% off)" % [upgrade.name, half_cost]
+				btn.custom_minimum_size = Vector2(0, 40)
+				var u := upgrade
+				var c := half_cost
+				btn.pressed.connect(func():
+					if not GameManager.spend_gold(c):
+						_show_warning("Not enough gold!")
+						return
+					event_overlay.visible = false
+					AudioManager.play("buy")
+					_map_upgrade_pending = u
+					_targeting_map_upgrade = true
+					_map_upgrade_return_to = "event_market"
+					board.targeting_mode = true
+					board.targeting_class_req = u.get("class_req", "")
+					Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+					board.queue_redraw()
+					_restore_squad()
+					_show_warning("Apply %s — click a unit" % u.name)
+				)
+				btn_container.add_child(btn)
+
+			var leave_btn := Button.new()
+			leave_btn.text = "Leave"
+			leave_btn.custom_minimum_size = Vector2(0, 40)
+			leave_btn.pressed.connect(func():
+				event_overlay.visible = false
+				_complete_map_node()
+			)
+			btn_container.add_child(leave_btn)
+
+	event_overlay.visible = true
+
+# ── Map Upgrade Targeting ────────────────────────────────────
+
+func _apply_map_upgrade_to_unit(unit: Unit) -> void:
+	if not _targeting_map_upgrade or _map_upgrade_pending.is_empty():
+		return
+
+	var upgrade: Dictionary = _map_upgrade_pending
+
+	# Validate class restriction
+	if upgrade.has("class_req") and upgrade.class_req != "" and unit.unit_data.unit_class != upgrade.class_req:
+		_show_warning("Wrong unit class!")
+		return
+
+	# Check if unit already has this upgrade — level it up
+	var existing_upg: Dictionary = {}
+	for upg in unit.applied_upgrades:
+		if upg.name == upgrade.name:
+			existing_upg = upg
+			break
+
+	if existing_upg.is_empty():
+		if unit.applied_upgrades.size() >= unit.get_max_upgrades():
+			_show_warning("Unit has max upgrades!")
+			return
+		var new_upg := upgrade.duplicate()
+		new_upg.level = 1
+		unit.applied_upgrades.append(new_upg)
+	else:
+		existing_upg.level = existing_upg.get("level", 1) + 1
+
+	_apply_stat_buff(unit, upgrade.stat, upgrade.amount)
+	AudioManager.play("upgrade")
+
+	_targeting_map_upgrade = false
+	_map_upgrade_pending = {}
+	board.targeting_class_req = ""
+	board.targeting_mode = false
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	board.select_unit(unit)
+	_show_info_panel(unit)
+	_update_ui()
+	board.queue_redraw()
+
+	# Return to origin overlay or complete the node
+	_save_squad()
+	var return_to := _map_upgrade_return_to
+	_map_upgrade_return_to = ""
+	match return_to:
+		"shop":
+			_show_special_shop_overlay()
+		"event_market":
+			# Market event: after applying, complete the node
+			_complete_map_node()
+		_:
+			_complete_map_node()
+
+func _cancel_map_upgrade_targeting() -> void:
+	if not _targeting_map_upgrade:
+		return
+	var return_to := _map_upgrade_return_to
+	_targeting_map_upgrade = false
+	_map_upgrade_pending = {}
+	_map_upgrade_return_to = ""
+	board.targeting_class_req = ""
+	board.targeting_mode = false
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	_update_ui()
+	board.queue_redraw()
+	# Return to source overlay or complete node
+	match return_to:
+		"shop":
+			_show_special_shop_overlay()
+		_:
+			_complete_map_node()
 
 # ── Wave Select UI ──────────────────────────────────────────
 
@@ -733,7 +1469,9 @@ func _show_wave_select() -> void:
 		wave_overlay.visible = true
 	elif ranked_mode:
 		# Ranked but backend offline — auto-generate AI opponent, skip picker
-		wave_options = [_generate_single_wave(0)]
+		var ai_wave := _generate_single_wave(0)
+		ai_wave["ranked_ai_rating"] = bm.player_rating if bm else 1000
+		wave_options = [ai_wave]
 		_on_wave_selected(0)
 	else:
 		wave_options = _generate_wave_options()
@@ -745,8 +1483,8 @@ func _show_wave_select() -> void:
 		AudioManager.play("victory")
 
 func _show_wave_select_rematch() -> void:
-	if ranked_mode:
-		# Ranked rematch: skip wave picker, auto-select the same opponent
+	if ranked_mode or GameManager.is_map_mode:
+		# Ranked/map rematch: skip wave picker, auto-select the same wave
 		_on_wave_selected(0)
 		return
 	wave_title.text = "Round %d/%d — Rematch" % [GameManager.current_round, GameManager.MAX_ROUNDS]
@@ -772,8 +1510,11 @@ func _on_opponents_fetched(opponents: Array) -> void:
 		# Auto-match: pick the single closest-ELO opponent, skip the picker
 		var best_wave := _pick_best_opponent(opponents)
 		if best_wave.is_empty():
-			# No valid opponents — fall back to a single AI wave, auto-select
-			wave_options = [_generate_single_wave(0)]
+			# No valid opponents — fall back to AI wave with synthetic rating for ELO
+			var ai_wave := _generate_single_wave(0)
+			var bm_fallback = get_node_or_null("/root/BackendManager")
+			ai_wave["ranked_ai_rating"] = bm_fallback.player_rating if bm_fallback else 1000
+			wave_options = [ai_wave]
 		else:
 			wave_options = [best_wave]
 		_on_wave_selected(0)
@@ -1120,7 +1861,7 @@ func _generate_wave_options() -> Array[Dictionary]:
 	for i in range(2):
 		options.append(_generate_single_wave(0))
 	# 3rd option is always the hardest — extra budget + bonus gold reward
-	options.append(_generate_single_wave(2 + GameManager.current_round / 2))
+	options.append(_generate_single_wave(3 + GameManager.current_round * 2 / 3))
 	var bonus := 5 + randi_range(0, GameManager.current_round)
 	options[2].bonus_gold = bonus
 	# Sort first two by DPS so easiest is first, medium second
@@ -1143,13 +1884,13 @@ func _wave_dps(wave: Dictionary) -> float:
 		total += dmg * aps
 	return total
 
-func _generate_single_wave(extra_budget: int = 0) -> Dictionary:
-	var round_num := GameManager.current_round
+func _generate_single_wave(extra_budget: int = 0, effective_round: int = -1, budget_mult: float = 1.0) -> Dictionary:
+	var round_num: int = effective_round if effective_round > 0 else GameManager.current_round
 	# Farm budget: base + round scaling + variance + optional extra for hard waves
-	var enemy_farm_budget := round_num + 1 + randi_range(0, maxi(round_num / 3, 1)) + extra_budget
+	var enemy_farm_budget := int((round_num + 1 + round_num / 5 + randi_range(0, maxi(round_num / 3, 1)) + extra_budget) * budget_mult)
 
 	# Enemy level scales with rounds (faster progression, higher cap)
-	var base_level := clampi(ceili(round_num / 2.0), 1, 10)
+	var base_level := clampi(ceili(round_num / 2.0) + maxi(round_num - 10, 0) / 3, 1, 12)
 
 	# Pick a strategy and build composition from its weights
 	var strat: Dictionary = wave_strategies.pick_random()
@@ -1164,7 +1905,7 @@ func _generate_single_wave(extra_budget: int = 0) -> Dictionary:
 	while budget_used < enemy_farm_budget and attempts < max_attempts:
 		var data: UnitData = weighted_pool.pick_random()
 		if budget_used + data.pop_cost <= enemy_farm_budget:
-			var lvl := clampi(base_level + randi_range(-1, 1), 1, 10)
+			var lvl := clampi(base_level + randi_range(-1, 1), 1, 12)
 			enemies.append({"data": data, "level": lvl})
 			budget_used += data.pop_cost
 			var key := "%s Lv%d" % [data.unit_class, lvl]
@@ -1223,11 +1964,16 @@ func _on_wave_selected(idx: int) -> void:
 		_spawn_opponent_squad(wave.get("opponent_squad_json", []))
 	else:
 		# AI: spawn procedurally generated enemies
-		current_opponent_rating = 0
-		current_opponent_name = ""
-		battle_enemy_name.text = "vs AI Wave"
+		current_opponent_rating = wave.get("ranked_ai_rating", 0)
+		current_opponent_name = "AI Opponent" if current_opponent_rating > 0 else ""
+		battle_enemy_name.text = "vs AI Wave (Ranked)" if current_opponent_rating > 0 else "vs AI Wave"
 		var enemies: Array = wave.enemies
 		var enemy_count: int = enemies.size()
+		var wave_strategy: String = wave.get("strategy", "")
+		if wave_strategy == "encounter":
+			battle_enemy_name.text = "vs " + wave.get("encounter_name", "Elite")
+		elif wave_strategy == "ai_simulated":
+			battle_enemy_name.text = "vs " + wave.get("name", "AI Squad")
 		for i in range(enemy_count):
 			var entry: Dictionary = enemies[i]
 			var spacing: float = Board.ARENA_HEIGHT / (enemy_count + 1)
@@ -1236,20 +1982,92 @@ func _on_wave_selected(idx: int) -> void:
 				spacing * (i + 1)
 			)
 			var pos := board.snap_to_enemy_grid(raw_pos)
-			var unit := _spawn_unit(entry.data, Unit.Team.ENEMY, pos)
-			# Apply level scaling: each level above 1 boosts stats
-			var lvl: int = entry.get("level", 1)
-			if lvl > 1:
-				var scale_factor := 1.0 + (lvl - 1) * 0.45
-				unit.damage = int(ceil(unit.damage * scale_factor))
-				unit.max_hp = int(ceil(unit.max_hp * scale_factor))
-				unit.current_hp = unit.max_hp
-				unit.armor = int(ceil(unit.armor * scale_factor)) if unit.armor > 0 else 0
-				unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.18
-				unit.health_bar.max_value = unit.max_hp
-				unit.health_bar.value = unit.current_hp
+			var override: Dictionary = entry.get("override", {})
+			if entry.has("display_name") and not override.has("hero_name"):
+				override["hero_name"] = entry.display_name
+			if entry.has("ability_key") and entry.ability_key != "" and not override.has("ability_key"):
+				override["ability_key"] = entry.ability_key
+				override["ability_name"] = entry.get("instance_ability_name", "")
+				override["ability_desc"] = entry.get("instance_ability_desc", "")
+			var unit := _spawn_unit(entry.data, Unit.Team.ENEMY, pos, override)
+			if entry.has("stats"):
+				# AI-simulated squad: apply pre-computed stats directly
+				var s: Dictionary = entry.stats
+				unit.xp = entry.get("xp", 0)
+				unit.level = entry.get("level", 1)
+				unit.damage = s.damage
+				unit.max_hp = s.max_hp
+				unit.current_hp = s.max_hp
+				unit.attacks_per_second = s.attacks_per_second
+				unit.attack_range = s.attack_range
+				unit.ability_range = s.get("ability_range", unit.unit_data.ability_range)
+				unit.move_speed = s.move_speed
+				unit.max_armor = s.get("max_armor", s.armor)
+				unit.armor = unit.max_armor
+				unit.evasion = s.evasion
+				unit.crit_chance = s.crit_chance
+				unit.skill_proc_chance = s.skill_proc_chance
+				unit.max_mana = s.max_mana
+				unit.mana_cost_per_attack = s.mana_cost_per_attack
+				unit.ability_cooldown = s.get("ability_cooldown", unit.ability_cooldown)
+				unit.mana_regen_per_second = s.mana_regen_per_second
+				unit.hp_regen_per_second = s.get("hp_regen_per_second", 0.0)
+				# Apply modifier flags
+				unit.primed = entry.get("primed", false)
+				unit.poison_power = entry.get("poison_power", 0)
+				unit.thorns_slow = entry.get("thorns_slow", false)
+				unit.lifesteal_pct = entry.get("lifesteal_pct", 0.0)
+				unit.last_stand = entry.get("last_stand", false)
+				unit.relentless = entry.get("relentless", false)
+				unit.sepsis_spread = entry.get("sepsis_spread", 0)
+				unit.living_shield_max = entry.get("living_shield_max", 0)
+				unit.living_shield_hp = entry.get("living_shield_max", 0)
+				unit.invincible_max = entry.get("invincible_max", 0)
+				unit.invincible_charges = entry.get("invincible_max", 0)
+				unit.haymaker_counter = entry.get("haymaker_counter", 0)
+				unit.legion_master = entry.get("legion_master", false)
+				unit.necromancy_stacks = entry.get("necromancy_stacks", 0)
+				unit.hellfire = entry.get("hellfire", false)
+				unit.corrosive_power = entry.get("corrosive_power", 0)
+				var saved_upgrades: Array = entry.get("applied_upgrades", [])
+				for upg in saved_upgrades:
+					unit.applied_upgrades.append(upg.duplicate())
+			else:
+				# Legacy level-based scaling (ranked PvP / old waves)
+				var lvl: int = entry.get("level", 1)
+				if lvl > 1:
+					var scale_factor := 1.0 + (lvl - 1) * 0.45
+					unit.damage = int(ceil(unit.damage * scale_factor))
+					unit.max_hp = int(ceil(unit.max_hp * scale_factor))
+					unit.current_hp = unit.max_hp
+					unit.armor = int(ceil(unit.armor * scale_factor)) if unit.armor > 0 else 0
+					unit.attacks_per_second *= 1.0 + (lvl - 1) * 0.18
+				# Apply encounter-specific boss stat multiplier
+				var boss_mult: float = entry.get("stat_mult", 1.0)
+				if boss_mult > 1.0:
+					unit.damage = int(ceil(unit.damage * boss_mult))
+					unit.max_hp = int(ceil(unit.max_hp * boss_mult))
+					unit.current_hp = unit.max_hp
+					unit.armor = int(ceil(unit.armor * boss_mult)) if unit.armor > 0 else 0
+					unit.attacks_per_second *= 1.0 + (boss_mult - 1.0) * 0.4
+				# Apply encounter modifiers (primed, lifesteal, etc.)
+				var mods: Dictionary = entry.get("modifiers", {})
+				for key in mods:
+					unit.set(key, mods[key])
+				# Visual scale-up for boss units
+				if entry.get("is_boss_unit", false):
+					unit.scale = Vector2(1.3, 1.3)
+			unit.queue_redraw()
 
 	_restore_squad()
+	if GameManager.is_map_mode:
+		_prep_snapshot = {
+			"squad": _deep_copy_squad(player_squad),
+			"gold": GameManager.gold,
+			"farms": GameManager.farms,
+			"farm_purchases": GameManager.farm_purchases,
+		}
+		GameManager.gold_snapshot = GameManager.gold
 	if shop_frozen:
 		shop_frozen = false
 	else:
@@ -1378,22 +2196,107 @@ func _update_shop_display() -> void:
 		elif slot.type == "hero":
 			var data: UnitData = slot.data
 			var cls_color: Color = CLASS_COLORS.get(data.unit_class, Color.WHITE)
-			var label := "%dg [F:%d]\n%s\n%s" % [data.farm_cost, data.pop_cost, data.unit_class, slot.hero_name]
-			if _find_player_unit_by_class(data.unit_class):
-				label += "\nMerge as EXP"
-			btn.text = label
+			btn.text = ""
+			btn.icon = null
 			btn.disabled = false
-			# Hero icon (small, left-aligned)
-			if data.texture:
-				btn.icon = data.texture
 			# Colored left border accent with rounded corners
 			var hero_style := StyleBoxFlat.new()
 			hero_style.bg_color = Color(0.18, 0.18, 0.22)
 			hero_style.border_color = cls_color
 			hero_style.border_width_left = 3
 			hero_style.set_corner_radius_all(6)
-			hero_style.set_content_margin_all(4)
+			hero_style.set_content_margin_all(0)
 			btn.add_theme_stylebox_override("normal", hero_style)
+			# Build structured card layout
+			var hero_margin := MarginContainer.new()
+			hero_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			hero_margin.add_theme_constant_override("margin_left", 6)
+			hero_margin.add_theme_constant_override("margin_right", 6)
+			hero_margin.add_theme_constant_override("margin_top", 4)
+			hero_margin.add_theme_constant_override("margin_bottom", 4)
+			hero_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var hero_vbox := VBoxContainer.new()
+			hero_vbox.add_theme_constant_override("separation", 1)
+			hero_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			# Row 1: Hero icon (left) + gold cost (right, gold-colored)
+			var hero_top := HBoxContainer.new()
+			hero_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if data.texture:
+				var hero_icon := TextureRect.new()
+				hero_icon.texture = data.texture
+				hero_icon.custom_minimum_size = Vector2(18, 18)
+				hero_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				hero_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+				hero_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				hero_top.add_child(hero_icon)
+			var hero_spacer := Control.new()
+			hero_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			hero_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hero_top.add_child(hero_spacer)
+			var hero_gold := Label.new()
+			hero_gold.text = "%dg" % data.farm_cost
+			hero_gold.add_theme_font_size_override("font_size", 12)
+			hero_gold.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+			hero_gold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hero_top.add_child(hero_gold)
+			hero_vbox.add_child(hero_top)
+			# Row 2: Class name (centered, class-colored)
+			var hero_class_lbl := Label.new()
+			hero_class_lbl.text = data.unit_class
+			hero_class_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			hero_class_lbl.add_theme_font_size_override("font_size", 12)
+			hero_class_lbl.add_theme_color_override("font_color", cls_color)
+			hero_class_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hero_vbox.add_child(hero_class_lbl)
+			# Row 3: Hero name (centered, white)
+			var hero_name_lbl := Label.new()
+			hero_name_lbl.text = slot.hero_name
+			hero_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			hero_name_lbl.add_theme_font_size_override("font_size", 11)
+			hero_name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hero_vbox.add_child(hero_name_lbl)
+			# Row 4: House icons row (centered) — one solid house per pop_cost
+			var house_row := HBoxContainer.new()
+			house_row.alignment = BoxContainer.ALIGNMENT_CENTER
+			house_row.add_theme_constant_override("separation", 2)
+			house_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			for _h in range(data.pop_cost):
+				var h_icon := TextureRect.new()
+				h_icon.texture = HOUSE_SOLID
+				h_icon.custom_minimum_size = Vector2(14, 14)
+				h_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				h_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+				h_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				house_row.add_child(h_icon)
+			hero_vbox.add_child(house_row)
+			# Row 5: Merge button (if same-class unit exists on board)
+			if _find_player_unit_by_class(data.unit_class):
+				var merge_btn := Button.new()
+				merge_btn.text = "Merge as EXP"
+				merge_btn.add_theme_font_size_override("font_size", 9)
+				merge_btn.custom_minimum_size = Vector2(0, 18)
+				merge_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+				var merge_style := StyleBoxFlat.new()
+				merge_style.bg_color = Color(0.25, 0.15, 0.15)
+				merge_style.border_color = Color(0.8, 0.3, 0.3, 0.6)
+				merge_style.set_border_width_all(1)
+				merge_style.set_corner_radius_all(3)
+				merge_style.set_content_margin_all(2)
+				merge_btn.add_theme_stylebox_override("normal", merge_style)
+				var merge_hover := StyleBoxFlat.new()
+				merge_hover.bg_color = Color(0.35, 0.18, 0.18)
+				merge_hover.border_color = Color(1.0, 0.4, 0.4, 0.8)
+				merge_hover.set_border_width_all(1)
+				merge_hover.set_corner_radius_all(3)
+				merge_hover.set_content_margin_all(2)
+				merge_btn.add_theme_stylebox_override("hover", merge_hover)
+				merge_btn.add_theme_color_override("font_color", Color(1.0, 0.6, 0.6))
+				merge_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.8, 0.8))
+				var merge_idx := i
+				merge_btn.pressed.connect(func(): _on_merge_button_pressed(merge_idx))
+				hero_vbox.add_child(merge_btn)
+			hero_margin.add_child(hero_vbox)
+			btn.add_child(hero_margin)
 		else:
 			var upgrade: Dictionary = slot.data
 			btn.text = ""
@@ -1477,6 +2380,20 @@ func _update_shop_display() -> void:
 			btn.add_child(margin)
 		if i == _selected_shop_slot and not slot.sold:
 			btn.modulate = btn.modulate.lightened(0.35)
+		# Freeze lock overlay on unsold items
+		if shop_frozen and not slot.sold:
+			var lock_overlay := ColorRect.new()
+			lock_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			lock_overlay.color = Color(0.7, 0.85, 1.0, 0.15)
+			lock_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			btn.add_child(lock_overlay)
+			var lock_lbl := Label.new()
+			lock_lbl.text = "🔒"
+			lock_lbl.add_theme_font_size_override("font_size", 22)
+			lock_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+			lock_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lock_lbl.modulate = Color(1, 1, 1, 0.4)
+			btn.add_child(lock_lbl)
 
 	reroll_button.text = "⚄ %dg" % GameManager.REROLL_COST
 	reroll_button.disabled = GameManager.gold < GameManager.REROLL_COST
@@ -1504,13 +2421,6 @@ func _select_shop_slot(idx: int) -> void:
 	shop_confirm_bar.position = Vector2(btn_global.x, btn_global.y + btn.size.y + 4)
 	shop_confirm_bar.visible = true
 	_show_shop_preview(idx)
-	# Highlight merge target if buying a duplicate hero
-	var slot: Dictionary = shop_slots[idx]
-	if slot.type == "hero" and not _shift_held_on_select:
-		board.merge_highlight_unit = _find_player_unit_by_class(slot.data.unit_class)
-	else:
-		board.merge_highlight_unit = null
-	board.queue_redraw()
 
 func _cancel_shop_selection() -> void:
 	if _selected_shop_slot < 0:
@@ -1536,47 +2446,55 @@ func _confirm_shop_purchase() -> void:
 		_buy_upgrade(idx)
 	_update_shop_display()
 
+func _on_merge_button_pressed(idx: int) -> void:
+	if _targeting_upgrade or _targeting_merge:
+		return
+	if GameManager.current_phase != GameManager.Phase.PREP:
+		return
+	if idx >= shop_slots.size():
+		return
+	var slot: Dictionary = shop_slots[idx]
+	if slot.sold:
+		return
+	var data: UnitData = slot.data
+	var matches := _find_player_units_by_class(data.unit_class)
+	if matches.is_empty():
+		_show_warning("No %s to merge into!" % data.unit_class)
+		return
+	if matches.size() == 1:
+		if not GameManager.spend_gold(slot.cost):
+			_show_warning("Not enough gold!")
+			return
+		_grant_xp(matches[0], 1)
+		slot.sold = true
+		board.select_unit(matches[0])
+		_show_info_panel(matches[0])
+		_update_shop_display()
+		_update_ui()
+		AudioManager.play("buy")
+	else:
+		if not GameManager.spend_gold(slot.cost):
+			_show_warning("Not enough gold!")
+			return
+		slot.sold = true
+		_targeting_merge = true
+		_pending_merge_slot = idx
+		board.targeting_class_req = data.unit_class
+		board.targeting_mode = true
+		Input.set_default_cursor_shape(Input.CURSOR_CROSS)
+		_show_warning("Click a %s to merge into" % data.unit_class)
+		_update_shop_display()
+		_update_ui()
+		board.queue_redraw()
+		AudioManager.play("buy")
+
 func _buy_hero(idx: int) -> void:
 	var slot: Dictionary = shop_slots[idx]
 	var data: UnitData = slot.data
 
-	# Auto-merge: if same-class units exist and Shift is NOT held, feed as XP
-	if not _shift_held_on_select:
-		var matches := _find_player_units_by_class(data.unit_class)
-		if matches.size() == 1:
-			# Single match — auto-merge immediately
-			if not GameManager.spend_gold(slot.cost):
-				_show_warning("Not enough gold!")
-				return
-			_grant_xp(matches[0], 1)
-			slot.sold = true
-			board.select_unit(matches[0])
-			_show_info_panel(matches[0])
-			_update_shop_display()
-			_update_ui()
-			AudioManager.play("buy")
-			return
-		elif matches.size() > 1:
-			# Multiple matches — enter merge targeting so player can choose
-			if not GameManager.spend_gold(slot.cost):
-				_show_warning("Not enough gold!")
-				return
-			slot.sold = true
-			_targeting_merge = true
-			_pending_merge_slot = idx
-			board.targeting_class_req = data.unit_class
-			board.targeting_mode = true
-			Input.set_default_cursor_shape(Input.CURSOR_CROSS)
-			_show_warning("Click a %s to merge into" % data.unit_class)
-			_update_shop_display()
-			_update_ui()
-			board.queue_redraw()
-			AudioManager.play("buy")
-			return
-
 	# Spawn new unit — check farm budget
 	if _get_farms_used() + data.pop_cost > GameManager.farms:
-		_show_warning("Not enough farms!")
+		_show_warning("Not enough houses!")
 		return
 	if not GameManager.spend_gold(slot.cost):
 		_show_warning("Not enough gold!")
@@ -1803,6 +2721,231 @@ func _update_freeze_display() -> void:
 		freeze_button.modulate = Color(1, 1, 1)
 		freeze_button.tooltip_text = "Freeze Shop"
 
+# ── Sell Upgrade ─────────────────────────────────────────────
+
+func _sell_upgrade(unit: Unit, upgrade_name: String) -> void:
+	if GameManager.current_phase != GameManager.Phase.PREP:
+		return
+	var upg_idx := -1
+	for i in range(unit.applied_upgrades.size()):
+		if unit.applied_upgrades[i].name == upgrade_name:
+			upg_idx = i
+			break
+	if upg_idx < 0:
+		return
+	var upg: Dictionary = unit.applied_upgrades[upg_idx]
+	var level: int = upg.get("level", 1)
+	var total_cost: int = upg.cost * level
+	var refund := int(total_cost * 0.75)
+	# Reverse stat changes (once per level)
+	for _lv in range(level):
+		_remove_stat_buff(unit, upg.stat, upg.amount)
+	unit.applied_upgrades.remove_at(upg_idx)
+	GameManager.gold += refund
+	GameManager.gold_changed.emit(GameManager.gold)
+	unit.queue_redraw()
+	board.queue_redraw()
+	_show_info_panel(unit)
+	_update_ui()
+	AudioManager.play("sell")
+
+
+func _remove_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
+	match stat_key:
+		"damage":
+			unit.damage = maxi(unit.damage - int(amount), 0)
+		"attacks_per_second":
+			unit.attacks_per_second = maxf(unit.attacks_per_second - amount, 0.1)
+		"max_hp":
+			unit.max_hp = maxi(unit.max_hp - int(amount), 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"max_mana":
+			unit.max_mana = maxi(unit.max_mana - int(amount), 0)
+			unit._update_mana_bar()
+		"armor":
+			unit.armor = maxi(unit.armor - int(amount), 0)
+			unit.max_armor = maxi(unit.max_armor - int(amount), 0)
+			unit._update_armor_bar()
+		"evasion":
+			unit.evasion = maxf(unit.evasion - amount, 0.0)
+		"attack_range":
+			unit.attack_range = maxf(unit.attack_range - amount, 0.0)
+		"ability_range":
+			unit.ability_range = maxf(unit.ability_range - amount, 0.0)
+		"move_speed":
+			unit.move_speed = maxf(unit.move_speed - amount, 0.0)
+		"crit_chance":
+			unit.crit_chance = maxf(unit.crit_chance - amount, 0.0)
+		"skill_proc_chance":
+			unit.skill_proc_chance = maxf(unit.skill_proc_chance - amount, 0.0)
+		"ability_cooldown":
+			unit.ability_cooldown -= amount
+		"necromancy":
+			unit.necromancy_stacks = maxi(unit.necromancy_stacks - int(amount), 0)
+		"primed":
+			unit.primed = false
+		"corrosive":
+			unit.corrosive_power = maxi(unit.corrosive_power - int(amount), 0)
+		"thorns_slow":
+			unit.thorns_slow = false
+		"lifesteal":
+			unit.lifesteal_pct = maxf(unit.lifesteal_pct - amount, 0.0)
+		"berserk":
+			unit.damage = maxi(unit.damage - 6, 0)
+			unit.attacks_per_second = maxf(unit.attacks_per_second - 0.4, 0.1)
+			var hp_restore := int(float(unit.max_hp) / 0.7 * 0.3)
+			unit.max_hp += hp_restore
+			unit.current_hp = mini(unit.current_hp + hp_restore, unit.max_hp)
+			unit.queue_redraw()
+		"last_stand":
+			unit.last_stand = false
+			unit.last_stand_active = false
+		"relentless":
+			unit.relentless = false
+		"sepsis":
+			unit.sepsis_spread = maxi(unit.sepsis_spread - int(amount), 0)
+		"living_shield":
+			unit.living_shield_max = maxi(unit.living_shield_max - int(amount), 0)
+			unit.living_shield_hp = mini(unit.living_shield_hp, unit.living_shield_max)
+		"invincible":
+			unit.invincible_max = maxi(unit.invincible_max - int(amount), 0)
+			unit.invincible_charges = mini(unit.invincible_charges, unit.invincible_max)
+			unit.evasion = maxf(unit.evasion - 5.0, 0.0)
+		"haymaker":
+			unit.haymaker_counter = 0
+		"venom_arrow":
+			unit.poison_power = maxi(unit.poison_power - int(amount), 0)
+		"war_paint":
+			unit.damage = maxi(unit.damage - 3, 0)
+			unit.max_hp = maxi(unit.max_hp - 10, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"shadow_cloak":
+			unit.evasion = maxf(unit.evasion - 5.0, 0.0)
+			unit.crit_chance = maxf(unit.crit_chance - 3.0, 0.0)
+		"thick_plate":
+			unit.armor = maxi(unit.armor - 10, 0)
+			unit.max_armor = maxi(unit.max_armor - 10, 0)
+			unit._update_armor_bar()
+			unit.max_hp = maxi(unit.max_hp - 15, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"dark_sigil":
+			unit.damage = maxi(unit.damage - 3, 0)
+			unit.max_mana = maxi(unit.max_mana - 2, 0)
+			unit._update_mana_bar()
+		"sacred_blessing":
+			unit.max_hp = maxi(unit.max_hp - 15, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+			unit.max_mana = maxi(unit.max_mana - 2, 0)
+			unit._update_mana_bar()
+		"herbal_brew":
+			unit.damage = maxi(unit.damage - 3, 0)
+			unit.skill_proc_chance = maxf(unit.skill_proc_chance - 3.0, 0.0)
+		"shield_of_faith":
+			unit.armor = maxi(unit.armor - 8, 0)
+			unit.max_armor = maxi(unit.max_armor - 8, 0)
+			unit.armor_effectiveness = maxf(unit.armor_effectiveness - 0.1, 0.0)
+			unit._update_armor_bar()
+		"soul_binding":
+			unit.necromancy_stacks = maxi(unit.necromancy_stacks - 1, 0)
+			unit.max_hp = maxi(unit.max_hp - 10, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"blood_rage":
+			unit.damage = maxi(unit.damage - 5, 0)
+			unit.attacks_per_second = maxf(unit.attacks_per_second - 0.2, 0.1)
+		"deadeye":
+			unit.damage = maxi(unit.damage - 8, 0)
+			unit.attack_range = maxf(unit.attack_range - 80, 0.0)
+		"phantom_step":
+			unit.evasion = maxf(unit.evasion - 10, 0.0)
+			unit.crit_chance = maxf(unit.crit_chance - 10, 0.0)
+		"fortress":
+			unit.armor = maxi(unit.armor - 25, 0)
+			unit.max_armor = maxi(unit.max_armor - 25, 0)
+			unit._update_armor_bar()
+			unit.max_hp = maxi(unit.max_hp - 40, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"soul_rend":
+			unit.damage = maxi(unit.damage - 8, 0)
+			unit.max_mana = maxi(unit.max_mana - 3, 0)
+			unit._update_mana_bar()
+		"hellfire":
+			unit.hellfire = false
+		"divine_covenant":
+			unit.max_hp = maxi(unit.max_hp - 30, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+			unit.max_mana = maxi(unit.max_mana - 3, 0)
+			unit._update_mana_bar()
+		"toxic_mastery":
+			unit.damage = maxi(unit.damage - 5, 0)
+			unit.skill_proc_chance = maxf(unit.skill_proc_chance - 5, 0.0)
+		"holy_vanguard":
+			unit.armor = maxi(unit.armor - 15, 0)
+			unit.max_armor = maxi(unit.max_armor - 15, 0)
+			unit.armor_effectiveness = maxf(unit.armor_effectiveness - 0.25, 0.0)
+			unit._update_armor_bar()
+			unit.damage = maxi(unit.damage - 3, 0)
+		"rampage":
+			unit.damage = maxi(unit.damage - 10, 0)
+			unit.attacks_per_second = maxf(unit.attacks_per_second - 0.3, 0.1)
+			unit.max_hp = maxi(unit.max_hp - 20, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+		"hawkeye":
+			unit.damage = maxi(unit.damage - 12, 0)
+			unit.attack_range = maxf(unit.attack_range - 120, 0.0)
+			unit.crit_chance = maxf(unit.crit_chance - 8, 0.0)
+		"deaths_embrace":
+			unit.evasion = maxf(unit.evasion - 15, 0.0)
+			unit.crit_chance = maxf(unit.crit_chance - 15, 0.0)
+			unit.damage = maxi(unit.damage - 5, 0)
+		"bastion":
+			unit.armor = maxi(unit.armor - 40, 0)
+			unit.max_armor = maxi(unit.max_armor - 40, 0)
+			unit._update_armor_bar()
+			unit.max_hp = maxi(unit.max_hp - 60, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+			unit.damage = maxi(unit.damage - 2, 0)
+		"dark_pact":
+			unit.damage = maxi(unit.damage - 15, 0)
+			unit.max_mana = maxi(unit.max_mana - 5, 0)
+			unit._update_mana_bar()
+		"ascension":
+			unit.max_hp = maxi(unit.max_hp - 50, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+			unit.max_mana = maxi(unit.max_mana - 5, 0)
+			unit._update_mana_bar()
+			unit.damage = maxi(unit.damage - 5, 0)
+		"plague_lord":
+			unit.damage = maxi(unit.damage - 10, 0)
+			unit.skill_proc_chance = maxf(unit.skill_proc_chance - 8, 0.0)
+			unit.armor = maxi(unit.armor - 15, 0)
+			unit.max_armor = maxi(unit.max_armor - 15, 0)
+			unit._update_armor_bar()
+		"divine_bulwark":
+			unit.armor = maxi(unit.armor - 25, 0)
+			unit.max_armor = maxi(unit.max_armor - 25, 0)
+			unit.armor_effectiveness = maxf(unit.armor_effectiveness - 0.5, 0.0)
+			unit._update_armor_bar()
+			unit.max_hp = maxi(unit.max_hp - 40, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+			unit.damage = maxi(unit.damage - 5, 0)
+		"legion_master":
+			unit.legion_master = false
+			unit.necromancy_stacks = maxi(unit.necromancy_stacks - 2, 0)
+			unit.max_hp = maxi(unit.max_hp - 30, 1)
+			unit.current_hp = mini(unit.current_hp, unit.max_hp)
+			unit.queue_redraw()
+
 # ── Stat Upgrades ───────────────────────────────────────────
 
 func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
@@ -1814,8 +2957,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"max_hp":
 			unit.max_hp += int(amount)
 			unit.current_hp += int(amount)
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		"max_mana":
 			unit.max_mana += int(amount)
 			unit._update_mana_bar()
@@ -1835,6 +2977,8 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.crit_chance += amount
 		"skill_proc_chance":
 			unit.skill_proc_chance += amount
+		"ability_cooldown":
+			unit.ability_cooldown = maxf(unit.ability_cooldown + amount, 0.5)
 		"necromancy":
 			unit.necromancy_stacks += int(amount)
 		"primed":
@@ -1850,8 +2994,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			var hp_loss := int(unit.max_hp * 0.3)
 			unit.max_hp -= hp_loss
 			unit.current_hp = mini(unit.current_hp, unit.max_hp)
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.damage += 6
 			unit.attacks_per_second += 0.4
 		"last_stand":
@@ -1876,8 +3019,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.damage += 3
 			unit.max_hp += 10
 			unit.current_hp += 10
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		"steady_aim":
 			unit.damage += 4
 			unit.attack_range += 20
@@ -1890,8 +3032,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit._update_armor_bar()
 			unit.max_hp += 15
 			unit.current_hp += 15
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		"dark_sigil":
 			unit.damage += 3
 			unit.max_mana += 2
@@ -1899,8 +3040,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"sacred_blessing":
 			unit.max_hp += 15
 			unit.current_hp += 15
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.max_mana += 2
 			unit._update_mana_bar()
 		"herbal_brew":
@@ -1915,8 +3055,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.necromancy_stacks += 1
 			unit.max_hp += 10
 			unit.current_hp += 10
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		# ── Rare Hero-Specific ──
 		"blood_rage":
 			unit.damage += 5
@@ -1933,8 +3072,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit._update_armor_bar()
 			unit.max_hp += 40
 			unit.current_hp += 40
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		"soul_rend":
 			unit.damage += 8
 			unit.max_mana += 3
@@ -1944,8 +3082,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"divine_covenant":
 			unit.max_hp += 30
 			unit.current_hp += 30
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.max_mana += 3
 			unit._update_mana_bar()
 		"toxic_mastery":
@@ -1963,8 +3100,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit.attacks_per_second += 0.3
 			unit.max_hp += 20
 			unit.current_hp += 20
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 		"hawkeye":
 			unit.damage += 12
 			unit.attack_range += 120
@@ -1979,8 +3115,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit._update_armor_bar()
 			unit.max_hp += 60
 			unit.current_hp += 60
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.damage += 2
 		"dark_pact":
 			unit.damage += 15
@@ -1989,8 +3124,7 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 		"ascension":
 			unit.max_hp += 50
 			unit.current_hp += 50
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.max_mana += 5
 			unit._update_mana_bar()
 			unit.damage += 5
@@ -2007,16 +3141,14 @@ func _apply_stat_buff(unit: Unit, stat_key: String, amount: float) -> void:
 			unit._update_armor_bar()
 			unit.max_hp += 40
 			unit.current_hp += 40
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 			unit.damage += 5
 		"legion_master":
 			unit.legion_master = true
 			unit.necromancy_stacks += 2
 			unit.max_hp += 30
 			unit.current_hp += 30
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
+			unit.queue_redraw()
 	board.queue_redraw()
 
 func _on_stat_upgrade_pressed(unit: Unit, stat_key: String, increment: float) -> void:
@@ -2047,57 +3179,61 @@ func _merge_units(target: Unit, consumed: Unit) -> void:
 func _grant_xp(target: Unit, xp_gained: int) -> void:
 	target.xp += xp_gained
 
-	# Flat boost per XP gained (additive to prevent exponential compounding)
+	# Percentage boost per XP gained (~12% across core stats)
 	for i in range(xp_gained):
-		target.damage += 1
-		target.max_hp += 8
-		target.attacks_per_second += 0.02
-		target.attack_range += 3.0
-		target.move_speed += 1.5
+		target.damage = maxi(target.damage + 1, int(ceil(target.damage * 1.12)))
+		target.max_hp = maxi(target.max_hp + 5, int(ceil(target.max_hp * 1.12)))
+		target.attacks_per_second *= 1.10
+		target.attack_range = maxf(target.attack_range + 2.0, target.attack_range * 1.05)
+		target.move_speed = maxf(target.move_speed + 1.0, target.move_speed * 1.05)
 		if target.max_armor > 0:
-			target.armor += 1
-			target.max_armor += 1
-		target.evasion += 0.5
-		target.crit_chance += 0.5
-		target.skill_proc_chance += 0.3
-		target.max_mana += 1
+			target.armor = maxi(target.armor + 1, int(ceil(target.armor * 1.12)))
+			target.max_armor = maxi(target.max_armor + 1, int(ceil(target.max_armor * 1.12)))
+		target.evasion += 1.0
+		target.crit_chance += 1.0
+		target.skill_proc_chance += 0.5
+		target.max_mana += 2
 
-	# Level-up loop (mild multiplicative — the real power spike)
+	# Level-up loop (major power spike ~28% on core stats)
 	while target.xp >= Unit.XP_TO_LEVEL:
 		target.xp -= Unit.XP_TO_LEVEL
 		target.level += 1
-		target.damage = int(ceil(target.damage * 1.08))
-		target.max_hp = int(ceil(target.max_hp * 1.08))
-		target.attacks_per_second *= 1.02
-		target.attack_range *= 1.03
-		target.move_speed *= 1.03
-		target.armor += 2 if target.armor > 0 else 0
-		target.evasion += 2.0
-		target.crit_chance += 2.0
-		target.skill_proc_chance += 1.5
-		target.max_mana += 2
+		target.damage = maxi(target.damage + 2, int(ceil(target.damage * 1.28)))
+		target.max_hp = maxi(target.max_hp + 10, int(ceil(target.max_hp * 1.28)))
+		target.attacks_per_second *= 1.20
+		target.attack_range *= 1.08
+		target.move_speed *= 1.08
+		if target.armor > 0:
+			target.armor = maxi(target.armor + 2, int(ceil(target.armor * 1.25)))
+		target.evasion += 3.0
+		target.crit_chance += 3.0
+		target.skill_proc_chance += 2.0
+		target.max_mana += 3
 
 	target.current_hp = target.max_hp
 	target.current_mana = 0
 
 	# Update visuals
-	target.health_bar.max_value = target.max_hp
-	target.health_bar.value = target.current_hp
-	target._update_mana_bar()
-	target._update_armor_bar()
+	target.queue_redraw()
 	target.update_scale()
 
 # ── Squad Persistence ───────────────────────────────────────
 
 func _save_squad() -> void:
+	var board_units := board.get_units_on_team(Unit.Team.PLAYER)
+	if board_units.is_empty():
+		return  # Don't overwrite existing squad data when board is empty (e.g. wave select phase)
 	player_squad.clear()
-	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+	for unit in board_units:
+		if unit.is_summoned:
+			continue
 		var saved_upgrades: Array[Dictionary] = []
 		for upg in unit.applied_upgrades:
 			saved_upgrades.append(upg.duplicate())
+		var saved_pos: Vector2 = _pre_battle_positions.get(unit.display_name, unit.position)
 		player_squad.append({
 			"data": unit.unit_data,
-			"position": unit.position,
+			"position": saved_pos,
 			"xp": unit.xp,
 			"level": unit.level,
 			"necromancy_stacks": unit.necromancy_stacks,
@@ -2135,12 +3271,23 @@ func _save_squad() -> void:
 				"skill_proc_chance": unit.skill_proc_chance,
 				"max_mana": unit.max_mana,
 				"mana_cost_per_attack": unit.mana_cost_per_attack,
+				"ability_cooldown": unit.ability_cooldown,
 				"mana_regen_per_second": unit.mana_regen_per_second - unit.survival_mana_regen_bonus,
 				"hp_regen_per_second": unit.hp_regen_per_second - unit.survival_hp_regen_bonus,
 			}
 		})
 
+func _deep_copy_squad(squad: Array) -> Array:
+	var copy: Array = []
+	for entry in squad:
+		copy.append(entry.duplicate(true))
+	return copy
+
 func _restore_squad() -> void:
+	# Clear existing player units to prevent duplication (e.g. shop buying multiple upgrades)
+	for existing in board.get_units_on_team(Unit.Team.PLAYER):
+		board.remove_unit(existing)
+		existing.queue_free()
 	for entry in player_squad:
 		var unit := _spawn_unit(entry.data, Unit.Team.PLAYER, entry.position)
 		unit.xp = entry.get("xp", 0)
@@ -2192,11 +3339,10 @@ func _restore_squad() -> void:
 			unit.max_mana = s.max_mana
 			unit.current_mana = 0
 			unit.mana_cost_per_attack = s.mana_cost_per_attack
+			unit.ability_cooldown = s.get("ability_cooldown", unit.ability_cooldown)
 			unit.mana_regen_per_second = s.mana_regen_per_second + unit.survival_mana_regen_bonus
 			unit.hp_regen_per_second = s.get("hp_regen_per_second", 0.0) + unit.survival_hp_regen_bonus
-			unit.health_bar.max_value = s.max_hp
-			unit.health_bar.value = s.max_hp
-			unit._update_armor_bar()
+			unit.queue_redraw()
 			unit.update_scale()
 
 	# Paladin aura: allies within ability_range of a Paladin get +10% armor effectiveness
@@ -2211,6 +3357,61 @@ func _restore_squad() -> void:
 				if u != pal and u.position.distance_to(pal.position) <= pal.ability_range:
 					u.armor_effectiveness += 0.1
 					break
+
+# ── Encounter Helpers ──────────────────────────────────────
+
+func _get_unit_data_for_class(unit_class: String) -> UnitData:
+	for data in hero_pool:
+		if data.unit_class == unit_class:
+			return data
+	return null
+
+func _find_ability_variant(unit_class: String, ability_key: String) -> Dictionary:
+	var variants: Array = HeroVariants.ABILITY_VARIANTS.get(unit_class, [])
+	for v in variants:
+		if v.key == ability_key:
+			return v
+	return {}
+
+func _build_encounter_wave(encounter: Dictionary, eff_round: int) -> Dictionary:
+	var base_level := clampi(ceili(eff_round / 2.0) + maxi(eff_round - 10, 0) / 3, 1, 12)
+	var enemies: Array[Dictionary] = []
+	var unit_descs: PackedStringArray = []
+
+	for unit_def in encounter.units:
+		var data := _get_unit_data_for_class(unit_def["class"])
+		if not data:
+			continue
+		var lvl: int = base_level + unit_def.get("level_offset", 0)
+
+		var override := {"hero_name": unit_def.get("hero_name", "")}
+		var ability_key: String = unit_def.get("ability_key", "")
+		if ability_key != "":
+			override["ability_key"] = ability_key
+			var variant := _find_ability_variant(unit_def["class"], ability_key)
+			if not variant.is_empty():
+				override["ability_name"] = variant.name
+				override["ability_desc"] = variant.desc
+
+		enemies.append({
+			"data": data,
+			"level": lvl,
+			"override": override,
+			"modifiers": unit_def.get("modifiers", {}),
+			"is_boss_unit": unit_def.get("is_boss_unit", false),
+			"stat_mult": unit_def.get("stat_mult", 1.0),
+		})
+		unit_descs.append(unit_def.get("hero_name", data.unit_class))
+
+	return {
+		"name": encounter.name,
+		"encounter_name": encounter.name,
+		"strategy": "encounter",
+		"enemies": enemies,
+		"total_units": enemies.size(),
+		"total_farms": 0,
+		"enemy_text": ", ".join(unit_descs),
+	}
 
 # ── Unit Spawning ───────────────────────────────────────────
 
@@ -2293,21 +3494,19 @@ func _spawn_opponent_squad(squad_json: Array) -> void:
 			unit.mana_cost_per_attack = s.get("mana_cost_per_attack", unit.mana_cost_per_attack)
 			unit.mana_regen_per_second = s.get("mana_regen_per_second", unit.mana_regen_per_second)
 			unit.hp_regen_per_second = s.get("hp_regen_per_second", 0.0)
-			unit.health_bar.max_value = unit.max_hp
-			unit.health_bar.value = unit.current_hp
-			unit._update_armor_bar()
+			unit.queue_redraw()
 			unit.update_scale()
 
 
 func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summoner: Unit) -> void:
 	var archer := _spawn_unit(data, team, pos)
+	archer.is_summoned = true
 	# Summoned archers are weaker than recruited ones (75% base stats)
 	archer.damage = int(ceil(archer.damage * 0.75))
 	archer.max_hp = int(ceil(archer.max_hp * 0.75))
 	archer.current_hp = archer.max_hp
 	archer.attacks_per_second *= 0.9
-	archer.health_bar.max_value = archer.max_hp
-	archer.health_bar.value = archer.current_hp
+	archer.queue_redraw()
 	# Scale summoned archer stats based on the summoner's merge count and stat purchases
 	var total_purchases: int = 0
 	for key in summoner.stat_purchases:
@@ -2319,8 +3518,7 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 		archer.max_hp = int(ceil(archer.max_hp * scale_factor))
 		archer.current_hp = archer.max_hp
 		archer.attacks_per_second *= 1.0 + power * 0.05
-		archer.health_bar.max_value = archer.max_hp
-		archer.health_bar.value = archer.current_hp
+		archer.queue_redraw()
 		archer.update_scale()
 	# Necromancy: each stack gives summoned archers 20% of the summoner's bonus stats (max 3 stacks)
 	if summoner.necromancy_stacks > 0:
@@ -2339,9 +3537,7 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 		archer.armor += int(ceil(bonus_armor * pct))
 		archer.evasion += bonus_evasion * pct
 		archer.crit_chance += bonus_crit * pct
-		archer.health_bar.max_value = archer.max_hp
-		archer.health_bar.value = archer.current_hp
-		archer._update_armor_bar()
+		archer.queue_redraw()
 	# Variant-specific skeleton buffs (scale with round)
 	var round_num: int = GameManager.current_round
 	match summoner.ability_key:
@@ -2352,8 +3548,7 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 			archer.current_hp = archer.max_hp
 			archer.armor += bonus_armor
 			archer.max_armor = maxi(archer.max_armor, archer.armor)
-			archer.health_bar.max_value = archer.max_hp
-			archer.health_bar.value = archer.current_hp
+			archer.queue_redraw()
 			archer._update_armor_bar()
 		"summoner_familiar":
 			var bonus_dmg := 3 + round_num * 3
@@ -2368,15 +3563,13 @@ func _on_summon_requested(data: UnitData, team: Unit.Team, pos: Vector2, summone
 			archer.max_hp += bonus_hp
 			archer.current_hp = archer.max_hp
 			archer.damage += bonus_dmg
-			archer.health_bar.max_value = archer.max_hp
-			archer.health_bar.value = archer.current_hp
+			archer.queue_redraw()
 	# Legion Master: summoned units get +5 dmg, +30 HP
 	if summoner.legion_master:
 		archer.damage += 5
 		archer.max_hp += 30
 		archer.current_hp = mini(archer.current_hp + 30, archer.max_hp)
-		archer.health_bar.max_value = archer.max_hp
-		archer.health_bar.value = archer.current_hp
+		archer.queue_redraw()
 
 # ── Input (Drag & Drop + Selection) ────────────────────────
 
@@ -2386,11 +3579,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		if quit_overlay.visible:
 			quit_overlay.visible = false
 			return
+		if _targeting_map_upgrade:
+			_cancel_map_upgrade_targeting()
+			return
 		var phase := GameManager.current_phase
-		if phase == GameManager.Phase.WAVE_SELECT or (phase == GameManager.Phase.PREP and _selected_shop_slot < 0 and not _targeting_upgrade and not _targeting_merge):
+		if phase == GameManager.Phase.MAP or phase == GameManager.Phase.WAVE_SELECT or (phase == GameManager.Phase.PREP and _selected_shop_slot < 0 and not _targeting_upgrade and not _targeting_merge):
 			quit_overlay.visible = true
 			return
 
+	if GameManager.current_phase == GameManager.Phase.MAP and not _targeting_map_upgrade:
+		return
 	if GameManager.current_phase == GameManager.Phase.WAVE_SELECT:
 		return
 
@@ -2401,6 +3599,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 			_cancel_shop_selection()
+			return
+
+	# Cancel map upgrade targeting on right-click
+	if _targeting_map_upgrade:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			_cancel_map_upgrade_targeting()
 			return
 
 	# Cancel upgrade/merge targeting on right-click or Escape
@@ -2439,6 +3643,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_mouse_drag(local_pos)
 
 func _on_mouse_pressed(local_pos: Vector2) -> void:
+	# Map upgrade targeting: accept clicks on player units
+	if _targeting_map_upgrade:
+		var clicked_unit := board.get_unit_at(local_pos)
+		if clicked_unit and clicked_unit.team == Unit.Team.PLAYER:
+			_apply_map_upgrade_to_unit(clicked_unit)
+		return
+
 	# Upgrade targeting: only accept clicks on player units
 	if _targeting_upgrade:
 		var clicked_unit := board.get_unit_at(local_pos)
@@ -2504,6 +3715,10 @@ func _on_ready_pressed() -> void:
 		_show_warning("Place units first!")
 		return
 	_cancel_shop_selection()
+	# Save pre-battle positions so post-combat save restores units to their prep positions
+	_pre_battle_positions.clear()
+	for unit in board.get_units_on_team(Unit.Team.PLAYER):
+		_pre_battle_positions[unit.display_name] = unit.position
 	_save_squad()
 	# Upload squad snapshot if ranked mode
 	var bm_ready = get_node_or_null("/root/BackendManager")
@@ -2558,14 +3773,22 @@ func _on_combat_ended(player_won: bool) -> void:
 		if bounty_gold > 0:
 			GameManager.gold += bounty_gold
 			GameManager.gold_changed.emit(GameManager.gold)
+		# In map mode, preview income payout (added in _start_rematch)
+		if GameManager.is_map_mode:
+			gold_won = GameManager.calculate_income()
 		AudioManager.play("defeat")
 	_update_ui()
 
 	# Autosave — skip on game_complete or game_over (those delete the save)
-	var is_game_complete := GameManager.current_round >= GameManager.MAX_ROUNDS and player_won
+	var is_game_complete: bool
+	if GameManager.is_map_mode:
+		is_game_complete = player_won and _current_map_node.get("type", -1) == MapData.NodeType.BOSS and _current_map_node.get("act", 0) == 3
+	else:
+		is_game_complete = GameManager.current_round >= GameManager.MAX_ROUNDS and player_won
 	var is_game_over := GameManager.lives <= 0
 	if not is_game_complete and not is_game_over:
-		_save_squad()
+		# Don't re-save squad here — pre-battle save already has all units with correct positions.
+		# Re-saving now would lose dead units (already queue_free'd) and capture post-movement positions.
 		GameManager.save_game(SquadSerializer.squad_to_json(player_squad), ranked_mode)
 
 	# Build income breakdown lines
@@ -2575,7 +3798,7 @@ func _on_combat_ended(player_won: bool) -> void:
 	if hero_income > 0:
 		income_lines.append("Hero income: +%dg" % hero_income)
 
-	if GameManager.current_round >= GameManager.MAX_ROUNDS and player_won:
+	if is_game_complete:
 		_last_result = "game_complete"
 		ProfileManager.record_win(GameManager.current_round)
 		var details := "All rounds cleared%s!%s" % [vs_text, elo_text]
@@ -2587,7 +3810,12 @@ func _on_combat_ended(player_won: bool) -> void:
 		if player_won:
 			_last_result = "victory"
 			var details_parts: Array[String] = []
-			if vs_text != "":
+			# Show act completion for boss victories in map mode
+			if GameManager.is_map_mode and _current_map_node.get("type", -1) == MapData.NodeType.BOSS:
+				var act_names := ["I", "II", "III"]
+				var act_num: int = _current_map_node.get("act", 1)
+				details_parts.append("Act %s Complete!" % act_names[clampi(act_num - 1, 0, 2)])
+			elif vs_text != "":
 				details_parts.append("Defeated%s" % vs_text)
 			if elo_text != "":
 				details_parts.append(elo_text.strip_edges())
@@ -2601,7 +3829,7 @@ func _on_combat_ended(player_won: bool) -> void:
 			if elo_text != "":
 				details_parts.append(elo_text.strip_edges())
 			details_parts.append_array(income_lines)
-			_show_result_overlay("DEFEAT!", Color.RED, "\n".join(details_parts))
+			_show_result_overlay("DEFEAT!", Color.RED, "\n".join(details_parts), gold_won)
 
 func _on_combat_draw() -> void:
 	AudioManager.stop_music()
@@ -2633,9 +3861,42 @@ func _start_next_round() -> void:
 	board.deselect()
 	_hide_info_panel()
 	result_label.text = ""
-	GameManager.advance_round()
+	if GameManager.is_map_mode:
+		GameManager.advance_to_map()
+	else:
+		GameManager.advance_round()
+
+func _advance_map_node() -> void:
+	if _current_map_node.is_empty():
+		_start_next_round()
+		return
+	var node_id: int = _current_map_node["id"]
+	MapGenerator.mark_node_visited(GameManager.run_map, node_id)
+	MapGenerator.update_available_nodes(GameManager.run_map, node_id)
+	_current_map_node = {}
+	board.clear_all()
+	board.deselect()
+	_hide_info_panel()
+	_hide_battle_ui()
+	result_label.text = ""
+	# Check for act transition or game complete
+	if MapGenerator.is_run_complete(GameManager.run_map):
+		# Handled by game_complete in combat result already
+		return
+	GameManager.advance_to_map()
 
 func _start_rematch() -> void:
+	if GameManager.is_map_mode:
+		# Map mode: keep all prep changes, give income payout
+		var income := GameManager.calculate_income()
+		GameManager.gold += income
+		GameManager.gold_changed.emit(GameManager.gold)
+	elif not _prep_snapshot.is_empty():
+		# Ranked/non-map mode: restore pre-shopping state for retry
+		player_squad = _prep_snapshot["squad"]
+		GameManager.farms = _prep_snapshot["farms"]
+		GameManager.farm_purchases = _prep_snapshot["farm_purchases"]
+		GameManager.farms_changed.emit()
 	board.clear_all()
 	board.deselect()
 	_hide_info_panel()
@@ -2651,11 +3912,32 @@ func _on_phase_changed(new_phase: GameManager.Phase) -> void:
 		_cancel_upgrade_targeting()
 	if _targeting_merge:
 		_cancel_merge_targeting()
-	if new_phase == GameManager.Phase.WAVE_SELECT:
+	if _targeting_map_upgrade:
+		_cancel_map_upgrade_targeting()
+	if new_phase == GameManager.Phase.MAP:
+		_hide_battle_ui()
+		_hide_shop()
+		_hide_wave_select()
+		# Ensure board is clean when returning to map
+		board.clear_all()
+		board.deselect()
+		_hide_info_panel()
+		result_label.text = ""
+		map_overlay.refresh(GameManager.run_map)
+		map_overlay.visible = true
+	elif new_phase == GameManager.Phase.WAVE_SELECT:
+		if map_overlay:
+			map_overlay.visible = false
 		_show_wave_select()
 		_hide_battle_ui()
 	elif new_phase == GameManager.Phase.PREP:
+		if map_overlay:
+			map_overlay.visible = false
 		_hide_battle_ui()
+	else:
+		# BATTLE and RESULT phases — ensure map overlay is hidden
+		if map_overlay:
+			map_overlay.visible = false
 	_update_ui()
 
 func _on_game_over() -> void:
@@ -2687,18 +3969,60 @@ func _on_buy_farm_pressed() -> void:
 # ── UI Updates ──────────────────────────────────────────────
 
 func _update_ui() -> void:
-	var round_text := "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
+	var round_text: String
+	if GameManager.is_map_mode and not GameManager.run_map.is_empty():
+		var act_names := ["I", "II", "III"]
+		var act_idx := clampi(GameManager.run_map.get("current_act", 1) - 1, 0, 2)
+		round_text = "Act %s — Round %d" % [act_names[act_idx], GameManager.current_round]
+	else:
+		round_text = "Round %d/%d" % [GameManager.current_round, GameManager.MAX_ROUNDS]
 	var bm_ui = get_node_or_null("/root/BackendManager")
 	if ranked_mode and bm_ui:
 		round_text += "  |  ELO: %d" % bm_ui.player_rating
 	round_label.text = round_text
 	lives_label.text = "Lives: %d" % GameManager.lives
 	gold_label.text = "Gold: %d" % GameManager.gold
-	farms_label.text = "Farms: %d/%d" % [_get_farms_used(), GameManager.farms]
-	buy_farm_button.text = "Buy Farm (%dg)" % GameManager.get_farm_cost()
+	# Rebuild house icon row: solid = used, outline = available
+	for child in farms_row.get_children():
+		child.queue_free()
+	var used := _get_farms_used()
+	if GameManager.farms <= 6:
+		for i in range(GameManager.farms):
+			var icon := TextureRect.new()
+			icon.texture = HOUSE_SOLID if i < used else HOUSE_OUTLINE
+			icon.custom_minimum_size = Vector2(18, 18)
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			farms_row.add_child(icon)
+	else:
+		# Compact format: solid icon + used/total number
+		var h_icon := TextureRect.new()
+		h_icon.texture = HOUSE_SOLID
+		h_icon.custom_minimum_size = Vector2(24, 24)
+		h_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		h_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		farms_row.add_child(h_icon)
+		var count_lbl := Label.new()
+		count_lbl.text = "%d/%d" % [used, GameManager.farms]
+		count_lbl.add_theme_font_size_override("font_size", 13)
+		count_lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+		farms_row.add_child(count_lbl)
+		# Show outline icons for each empty slot
+		var empty := GameManager.farms - used
+		for i in range(empty):
+			var outline := TextureRect.new()
+			outline.texture = HOUSE_OUTLINE
+			outline.custom_minimum_size = Vector2(18, 18)
+			outline.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			outline.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			farms_row.add_child(outline)
+	buy_farm_button.text = "Buy House (%dg)" % GameManager.get_farm_cost()
 	buy_farm_button.disabled = GameManager.gold < GameManager.get_farm_cost() or GameManager.current_phase != GameManager.Phase.PREP
 
 	match GameManager.current_phase:
+		GameManager.Phase.MAP:
+			ready_button.disabled = true
+			ready_button.text = "Choose Path"
 		GameManager.Phase.WAVE_SELECT:
 			ready_button.disabled = true
 			ready_button.text = "Ready"
@@ -2760,11 +4084,37 @@ func _show_info_panel(unit: Unit) -> void:
 	name_label.text = unit_name
 	header_vbox.add_child(name_label)
 
-	var class_label := Label.new()
-	class_label.add_theme_font_size_override("font_size", 13)
-	class_label.add_theme_color_override("font_color", cls_color.lightened(0.3))
-	class_label.text = "%s  •  %dg  •  %d farms" % [unit.unit_data.unit_class, unit.unit_data.farm_cost, unit.unit_data.pop_cost]
-	header_vbox.add_child(class_label)
+	var class_row := HBoxContainer.new()
+	class_row.add_theme_constant_override("separation", 4)
+	var class_name_lbl := Label.new()
+	class_name_lbl.add_theme_font_size_override("font_size", 13)
+	class_name_lbl.add_theme_color_override("font_color", cls_color.lightened(0.3))
+	class_name_lbl.text = unit.unit_data.unit_class
+	class_row.add_child(class_name_lbl)
+	var dot1 := Label.new()
+	dot1.add_theme_font_size_override("font_size", 13)
+	dot1.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	dot1.text = "•"
+	class_row.add_child(dot1)
+	var gold_cost_lbl := Label.new()
+	gold_cost_lbl.add_theme_font_size_override("font_size", 13)
+	gold_cost_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	gold_cost_lbl.text = "%dg" % unit.unit_data.farm_cost
+	class_row.add_child(gold_cost_lbl)
+	var dot2 := Label.new()
+	dot2.add_theme_font_size_override("font_size", 13)
+	dot2.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+	dot2.text = "•"
+	class_row.add_child(dot2)
+	for _h in range(unit.unit_data.pop_cost):
+		var h_icon := TextureRect.new()
+		h_icon.texture = HOUSE_SOLID
+		h_icon.custom_minimum_size = Vector2(14, 14)
+		h_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		h_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		h_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		class_row.add_child(h_icon)
+	header_vbox.add_child(class_row)
 
 	var level_label := Label.new()
 	level_label.add_theme_font_size_override("font_size", 12)
@@ -2778,7 +4128,7 @@ func _show_info_panel(unit: Unit) -> void:
 	# Stats with upgrade buttons
 	_add_stat_row(unit, "damage", "Damage", "%d" % unit.damage, can_buy, 1.0)
 	_add_stat_row(unit, "attacks_per_second", "Atk/Sec", "%.2f" % unit.attacks_per_second, can_buy, 0.1)
-	_add_stat_display("Ability CD", "%.1fs" % unit.ability_cooldown)
+	_add_stat_row(unit, "ability_cooldown", "Ability CD", "%.1fs" % unit.ability_cooldown, can_buy, -0.3)
 	_add_stat_row(unit, "max_hp", "Health", "%d/%d" % [unit.current_hp, unit.max_hp], can_buy, 10.0)
 	_add_stat_row(unit, "max_mana", "Mana", "%d/%d" % [unit.current_mana, unit.max_mana], can_buy, 2.0)
 	_add_stat_row(unit, "armor", "Armor", "%d" % unit.armor, can_buy, 3.0)
@@ -2829,6 +4179,18 @@ func _show_info_panel(unit: Unit) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 4)
 		if can_buy:
+			# Sell button (75% refund)
+			var sell_refund := int(upg.cost * level * 0.75)
+			var sell_btn := Button.new()
+			sell_btn.text = "-%dg" % sell_refund
+			sell_btn.custom_minimum_size = Vector2(42, 22)
+			sell_btn.add_theme_font_size_override("font_size", 10)
+			sell_btn.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
+			var u_sell := unit
+			var u_name := upg.name as String
+			sell_btn.pressed.connect(func(): _sell_upgrade(u_sell, u_name))
+			row.add_child(sell_btn)
+			# Re-buy button (level up same upgrade)
 			var buy_btn := Button.new()
 			buy_btn.text = "+%dg" % upg.cost
 			buy_btn.custom_minimum_size = Vector2(42, 22)
@@ -2962,11 +4324,37 @@ func _show_shop_preview(idx: int) -> void:
 		name_label.text = slot.hero_name
 		header_vbox.add_child(name_label)
 
-		var class_label := Label.new()
-		class_label.add_theme_font_size_override("font_size", 13)
-		class_label.add_theme_color_override("font_color", cls_color.lightened(0.3))
-		class_label.text = "%s  •  %dg  •  %d farms" % [data.unit_class, data.farm_cost, data.pop_cost]
-		header_vbox.add_child(class_label)
+		var class_row := HBoxContainer.new()
+		class_row.add_theme_constant_override("separation", 4)
+		var class_name_lbl := Label.new()
+		class_name_lbl.add_theme_font_size_override("font_size", 13)
+		class_name_lbl.add_theme_color_override("font_color", cls_color.lightened(0.3))
+		class_name_lbl.text = data.unit_class
+		class_row.add_child(class_name_lbl)
+		var shop_dot1 := Label.new()
+		shop_dot1.add_theme_font_size_override("font_size", 13)
+		shop_dot1.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		shop_dot1.text = "•"
+		class_row.add_child(shop_dot1)
+		var shop_gold_lbl := Label.new()
+		shop_gold_lbl.add_theme_font_size_override("font_size", 13)
+		shop_gold_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		shop_gold_lbl.text = "%dg" % data.farm_cost
+		class_row.add_child(shop_gold_lbl)
+		var shop_dot2 := Label.new()
+		shop_dot2.add_theme_font_size_override("font_size", 13)
+		shop_dot2.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		shop_dot2.text = "•"
+		class_row.add_child(shop_dot2)
+		for _h in range(data.pop_cost):
+			var h_icon := TextureRect.new()
+			h_icon.texture = HOUSE_SOLID
+			h_icon.custom_minimum_size = Vector2(14, 14)
+			h_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			h_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			h_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			class_row.add_child(h_icon)
+		header_vbox.add_child(class_row)
 
 		var merge_target := _find_player_unit_by_class(data.unit_class)
 		if merge_target:

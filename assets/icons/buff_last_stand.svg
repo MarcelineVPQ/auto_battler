@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Last Stand: Cracked shield with flame -->
+  <path d="M 32 10 L 50 18 L 50 38 Q 50 52 32 56 Q 14 52 14 38 L 14 18 Z"
+        fill="#E65100" stroke="#FF6D00" stroke-width="2"/>
+  <!-- Crack -->
+  <polyline points="32,14 30,26 34,30 28,42 32,52" fill="none" stroke="#FFAB40" stroke-width="2" opacity="0.7"/>
+  <!-- Inner flame -->
+  <path d="M 32 22 Q 26 30 28 38 Q 30 44 32 44 Q 34 44 36 38 Q 38 30 32 22 Z"
+        fill="#FFAB40" opacity="0.5"/>
+  <path d="M 32 28 Q 30 32 31 36 Q 32 38 33 36 Q 34 32 32 28 Z"
+        fill="#FFF3E0" opacity="0.6"/>
+</svg>

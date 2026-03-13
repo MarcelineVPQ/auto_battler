@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Dark Sigil (Warlock): Arcane sigil circle -->
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#7B1FA2" stroke-width="2"/>
+  <circle cx="32" cy="32" r="16" fill="#4A148C" opacity="0.3" stroke="#9C27B0" stroke-width="1"/>
+  <!-- Pentagram-ish star -->
+  <polygon points="32,12 38,28 54,28 42,38 46,54 32,44 18,54 22,38 10,28 26,28"
+           fill="none" stroke="#CE93D8" stroke-width="1.5" opacity="0.7"/>
+  <!-- Center eye -->
+  <ellipse cx="32" cy="32" rx="5" ry="4" fill="#E040FB" opacity="0.6"/>
+  <circle cx="32" cy="32" r="2" fill="#FFFFFF" opacity="0.7"/>
+</svg>

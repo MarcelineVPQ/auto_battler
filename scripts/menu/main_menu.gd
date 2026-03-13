@@ -4,6 +4,7 @@ var settings_overlay: ColorRect
 var leaderboard_overlay: ColorRect
 var leaderboard_entries_container: VBoxContainer
 var leaderboard_loading_label: Label
+var leaderboard_title: Label
 var ranked_btn: Button
 var sp_continue_btn: Button
 var pvp_continue_btn: Button
@@ -274,12 +275,12 @@ func _build_leaderboard_overlay() -> void:
 	vbox.add_theme_constant_override("separation", 12)
 	panel.add_child(vbox)
 
-	var title := Label.new()
-	title.text = "Leaderboard"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	vbox.add_child(title)
+	leaderboard_title = Label.new()
+	leaderboard_title.text = "Leaderboard"
+	leaderboard_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	leaderboard_title.add_theme_font_size_override("font_size", 28)
+	leaderboard_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	vbox.add_child(leaderboard_title)
 
 	leaderboard_loading_label = Label.new()
 	leaderboard_loading_label.text = "Loading..."
@@ -313,12 +314,17 @@ func _on_leaderboard_pressed() -> void:
 	if bm:
 		bm.fetch_leaderboard()
 	else:
-		leaderboard_loading_label.text = "Offline"
+		# No backend — show local profiles directly
+		_on_leaderboard_fetched(ProfileManager.get_all_profile_stats())
 
 func _on_leaderboard_fetched(entries: Array) -> void:
 	leaderboard_loading_label.visible = false
 	for child in leaderboard_entries_container.get_children():
 		child.queue_free()
+
+	var is_local: bool = not entries.is_empty() and entries[0].get("is_local", false)
+	leaderboard_title.text = "Leaderboard (Local)" if is_local else "Leaderboard"
+
 	if entries.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "No data available"
@@ -338,11 +344,24 @@ func _on_leaderboard_fetched(entries: Array) -> void:
 			rank_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 		row.add_child(rank_label)
 
+		var entry_is_self: bool = entry.get("is_self", false)
+
 		var name_label := Label.new()
-		name_label.text = str(entry.player_name)
+		name_label.text = str(entry.player_name) + (" (You)" if entry_is_self else "")
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_label.add_theme_font_size_override("font_size", 14)
+		if entry_is_self:
+			name_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 		row.add_child(name_label)
+
+		if is_local:
+			var wl_label := Label.new()
+			wl_label.text = "%dW / %dL" % [entry.get("wins", 0), entry.get("losses", 0)]
+			wl_label.custom_minimum_size = Vector2(80, 0)
+			wl_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			wl_label.add_theme_font_size_override("font_size", 14)
+			wl_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+			row.add_child(wl_label)
 
 		var elo_label := Label.new()
 		elo_label.text = str(entry.score)

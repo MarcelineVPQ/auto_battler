@@ -212,8 +212,8 @@ func _on_auth_completed(result: int, response_code: int, _headers: PackedStringA
 	is_authenticated = true
 	auth_completed.emit(true)
 
-	# Write initial leaderboard score so the player appears in searches
-	_submit_initial_rating()
+	# Push display name to Nakama, re-auth for fresh JWT, then write leaderboard
+	_update_account_name()
 	_flush_offline_queue()
 
 
@@ -238,6 +238,7 @@ func _check_session() -> void:
 			_set_online()
 			is_authenticated = true
 			auth_completed.emit(true)
+			_update_account_name()
 			_flush_offline_queue()
 		else:
 			# Session expired — try refresh or re-auth
@@ -277,6 +278,7 @@ func _refresh_session() -> void:
 		_set_online()
 		is_authenticated = true
 		auth_completed.emit(true)
+		_update_account_name()
 		_flush_offline_queue()
 	, CONNECT_ONE_SHOT)
 	req.request(url, headers, HTTPClient.METHOD_POST, body)
@@ -309,7 +311,62 @@ func _submit_initial_rating() -> void:
 	_call_rpc("record_result", {
 		"new_rating": player_rating,
 		"won": true,  # Doesn't matter for initial — just sets the score
-	}, func(_r, _c, _h, _b): pass)
+	}, func(_r, c, _h, _b):
+		if c < 200 or c >= 300:
+			print("[BackendManager] Initial rating submit failed: code=%d" % c)
+	)
+
+
+func _update_account_name() -> void:
+	# Push profile name to Nakama so leaderboards show it
+	var profile_name := ProfileManager.get_active_profile_name()
+	player_name = profile_name
+	_save_auth()
+	var url := "%s/v2/account" % _base_url
+	var body := JSON.stringify({"username": profile_name})
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(_result: int, response_code: int, _h: PackedStringArray, _b: PackedByteArray):
+		req.queue_free()
+		if response_code >= 200 and response_code < 300:
+			# Name set — re-authenticate to get a fresh JWT with the new username
+			_re_auth_and_submit()
+		else:
+			# Username taken — retry with player ID suffix
+			var fallback_name := profile_name + "_" + player_id.left(4)
+			var req2 := HTTPRequest.new()
+			add_child(req2)
+			req2.request_completed.connect(func(_r2: int, rc2: int, _h2: PackedStringArray, _b2: PackedByteArray):
+				req2.queue_free()
+				_re_auth_and_submit()
+			, CONNECT_ONE_SHOT)
+			req2.request(url, _get_headers(), HTTPClient.METHOD_PUT, JSON.stringify({"username": fallback_name}))
+	, CONNECT_ONE_SHOT)
+	req.request(url, _get_headers(), HTTPClient.METHOD_PUT, body)
+
+
+func _re_auth_and_submit() -> void:
+	# Re-authenticate to get a fresh JWT with the updated username, then write to leaderboard
+	var device_id := _get_or_create_device_id()
+	var url := "%s/v2/account/authenticate/device?create=true" % _base_url
+	var body := JSON.stringify({"id": device_id})
+	var req := HTTPRequest.new()
+	add_child(req)
+	req.request_completed.connect(func(result: int, response_code: int, _h: PackedStringArray, resp_body: PackedByteArray):
+		req.queue_free()
+		if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
+			return
+		var json := JSON.new()
+		if json.parse(resp_body.get_string_from_utf8()) != OK:
+			return
+		var data: Dictionary = json.data
+		_session_token = data.get("token", _session_token)
+		_refresh_token = data.get("refresh_token", _refresh_token)
+		_save_auth()
+		# Now submit rating with the fresh token (correct username in JWT)
+		_submit_initial_rating()
+	, CONNECT_ONE_SHOT)
+	req.request(url, _get_auth_headers(), HTTPClient.METHOD_POST, body)
 
 
 # ── Squad Snapshot Upload ──
@@ -436,12 +493,14 @@ func _flush_record_result() -> void:
 		"won": _pending_result.get("won", false),
 	}
 	_pending_result.clear()
+	print("[BackendManager] Submitting result: rating=%d won=%s online=%s" % [payload.new_rating, str(payload.won), str(is_online)])
 
 	_call_rpc("record_result", payload, func(result: int, response_code: int, _h: PackedStringArray, _b: PackedByteArray):
 		if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
 			print("[BackendManager] record_result RPC failed: result=%d, code=%d" % [result, response_code])
 			_set_offline()
 			return
+		print("[BackendManager] Rating submitted successfully: %d" % player_rating)
 		rating_updated.emit(player_rating)
 	)
 
@@ -450,12 +509,15 @@ func _flush_record_result() -> void:
 
 func _call_rpc(rpc_id: String, payload: Dictionary, callback: Callable) -> void:
 	var url := "%s/v2/rpc/%s" % [_base_url, rpc_id]
-	var body := JSON.stringify(payload)
-	# Nakama expects RPC payload wrapped: the body IS the unwrapped payload for POST
+	# Nakama gRPC-gateway maps HTTP body directly to Rpc.payload (a string field),
+	# so the body must be a JSON-encoded string (double-encoded JSON).
+	var body := JSON.stringify(JSON.stringify(payload))
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result: int, response_code: int, headers: PackedStringArray, resp_body: PackedByteArray):
 		req.queue_free()
+		if response_code < 200 or response_code >= 300:
+			print("[BackendManager] RPC %s failed: code=%d body=%s" % [rpc_id, response_code, resp_body.get_string_from_utf8().left(200)])
 		callback.call(result, response_code, headers, resp_body)
 	, CONNECT_ONE_SHOT)
 	req.request(url, _get_headers(), HTTPClient.METHOD_POST, body)
@@ -463,7 +525,7 @@ func _call_rpc(rpc_id: String, payload: Dictionary, callback: Callable) -> void:
 
 func _call_rpc_on(rpc_id: String, payload: Dictionary, http_node: HTTPRequest, callback: Callable) -> void:
 	var url := "%s/v2/rpc/%s" % [_base_url, rpc_id]
-	var body := JSON.stringify(payload)
+	var body := JSON.stringify(JSON.stringify(payload))
 	http_node.request_completed.connect(callback, CONNECT_ONE_SHOT)
 	http_node.request(url, _get_headers(), HTTPClient.METHOD_POST, body)
 
@@ -479,13 +541,21 @@ func _unwrap_rpc_response(wrapper) -> Variant:
 	return wrapper
 
 
+func _clean_display_name(raw_name: String) -> String:
+	# Strip "_xxxx" device ID suffixes from usernames (e.g. "Ironjaw_c14a" -> "Ironjaw")
+	var parts := raw_name.rsplit("_", true, 1)
+	if parts.size() == 2 and parts[1].length() == 4:
+		return parts[0].left(20)
+	return raw_name.left(20)
+
+
 # ── Leaderboard ──
 
 func fetch_leaderboard() -> void:
 	if not is_online or not is_authenticated:
-		leaderboard_fetched.emit([])
+		leaderboard_fetched.emit(ProfileManager.get_all_profile_stats())
 		return
-	var url := "%s/v2/leaderboard/global_elo/records?limit=20" % _base_url
+	var url := "%s/v2/leaderboard/elo_ratings?limit=20" % _base_url
 	var req := HTTPRequest.new()
 	add_child(req)
 	req.request_completed.connect(func(result: int, response_code: int, _h: PackedStringArray, body: PackedByteArray):
@@ -504,8 +574,9 @@ func fetch_leaderboard() -> void:
 			var record: Dictionary = records[i]
 			entries.append({
 				"rank": i + 1,
-				"player_name": record.get("username", record.get("owner_id", "Unknown")).left(20),
+				"player_name": _clean_display_name(record.get("username", record.get("owner_id", "Unknown"))),
 				"score": int(record.get("score", 0)),
+				"is_self": record.get("owner_id", "") == player_id,
 			})
 		leaderboard_fetched.emit(entries)
 	, CONNECT_ONE_SHOT)

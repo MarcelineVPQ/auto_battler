@@ -96,6 +96,40 @@ func record_win(round_reached: int) -> void:
 	cfg.save(cfg_path)
 
 
+func get_all_profile_stats() -> Array[Dictionary]:
+	## Returns leaderboard-style entries from all local profiles, sorted by rating.
+	var entries: Array[Dictionary] = []
+	for p in _profiles:
+		var dir_path: String = PROFILES_DIR + str(p.id) + "/"
+		var profile_cfg := ConfigFile.new()
+		profile_cfg.load(dir_path + "profile.cfg")
+		var auth_cfg := ConfigFile.new()
+		auth_cfg.load(dir_path + "auth.cfg")
+
+		var rating: int = auth_cfg.get_value("auth", "rating", 0)
+		var display_name: String = auth_cfg.get_value("auth", "player_name", "")
+		if display_name == "":
+			display_name = str(p.name)
+		var wins: int = profile_cfg.get_value("stats", "wins", 0)
+		var losses: int = profile_cfg.get_value("stats", "losses", 0)
+
+		if wins + losses == 0 and rating <= 0:
+			continue  # Skip profiles with no play history
+
+		entries.append({
+			"player_name": display_name,
+			"score": rating,
+			"wins": wins,
+			"losses": losses,
+			"is_local": true,
+		})
+
+	entries.sort_custom(func(a, b): return a.score > b.score)
+	for i in entries.size():
+		entries[i]["rank"] = i + 1
+	return entries
+
+
 func record_loss(round_reached: int) -> void:
 	var cfg_path := get_profile_path("profile.cfg")
 	var cfg := ConfigFile.new()
